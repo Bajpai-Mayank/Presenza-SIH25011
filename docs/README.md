@@ -105,3 +105,16 @@ The routing is managed by `GoRouter` inside [`lib/config/routes.dart`](file:///c
    flutter run
    ```
 4. **Log in instantly** by clicking any of the **Quick Demo Access** chips (Student, Teacher, Admin) on the login screen.
+
+---
+
+## 5. Download & Install Android APK from GitHub
+
+Every time changes are pushed to the `main` branch, a GitHub Actions workflow automatically builds the release APK and updates the repository release.
+
+### How to Install:
+1. Go to the **Releases** page of this GitHub repository: `https://github.com/Bajpai-Mayank/Presenza/releases`.
+2. Locate the release tagged **`latest`** (titled **Latest Smart Circular Build**).
+3. Under **Assets**, click on **`app-release.apk`** to download it to your Android device.
+4. Open the downloaded file on your device to install the application. 
+   *(Note: You may need to enable "Install from Unknown Sources" in your device settings).*
