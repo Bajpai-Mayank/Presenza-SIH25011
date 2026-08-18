@@ -49,7 +49,25 @@ Anyone visiting your repository can now download `Presenza.apk` under the **Asse
 
 ---
 
-## 4. Option C: Automatic Cloud Build via GitHub Actions
+## 4. How to Download & Install on Any Android Phone (End-User Steps)
+
+Share this link with your users: **https://github.com/Bajpai-Mayank/Presenza/releases**
+
+### Steps for the Phone User:
+1. **Open the link** in any mobile browser (Chrome, Samsung Internet, etc.):  
+   👉 `https://github.com/Bajpai-Mayank/Presenza/releases`
+2. Look for the **Latest Release** at the top.
+3. Tap on the **Assets** dropdown (if collapsed).
+4. Tap on **`app-release.apk`** (or `Presenza.apk`) to download it.
+5. Once downloaded, tap **Open** (or find it in your phone's **Downloads** folder / Notification bar).
+6. When prompted by Android:
+   - Tap **Settings** ➔ Toggle ON **"Allow from this source"** (to permit installing apps downloaded from your browser).
+   - Tap **Back** and click **Install**.
+7. Once installed, tap **Open** to launch Presenza! 🎉
+
+---
+
+## 5. Option C: Automatic Cloud Build via GitHub Actions
 
 A GitHub Actions workflow has been added at `.github/workflows/build_apk.yml`.
 
@@ -57,3 +75,4 @@ Whenever you push changes or trigger the workflow:
 1. GitHub Cloud servers automatically build the APK.
 2. The APK will be available in the **Actions** tab as a downloadable artifact.
 3. If you push a tag (e.g. `v1.0.0`), it will automatically publish the APK to GitHub Releases.
+
