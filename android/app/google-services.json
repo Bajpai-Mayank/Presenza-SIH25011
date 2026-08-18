@@ -1,26 +1,37 @@
 {
   "project_info": {
-    "project_number": "1234567890",
-    "project_id": "presenza-app",
-    "storage_bucket": "presenza-app.appspot.com"
+    "project_number": "735183066067",
+    "firebase_url": "https://presenza-9115c-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "presenza-9115c",
+    "storage_bucket": "presenza-9115c.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1234567890:android:dummy123456",
+        "mobilesdk_app_id": "1:735183066067:android:76a5704526e39dceefd526",
         "android_client_info": {
           "package_name": "com.example.presenza"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "735183066067-16ibj6r98bf39h21j793r4gmtom984j1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyDummyKeyForAndroidConfig0000000"
+          "current_key": "AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "735183066067-16ibj6r98bf39h21j793r4gmtom984j1.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

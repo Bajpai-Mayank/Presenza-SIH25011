@@ -38,31 +38,31 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDummyKeyForWebConfig00000000000',
-    appId: '1:1234567890:web:dummy123456',
-    messagingSenderId: '1234567890',
-    projectId: 'presenza-app',
-    authDomain: 'presenza-app.firebaseapp.com',
-    databaseURL: 'https://presenza-app-default-rtdb.firebaseio.com',
-    storageBucket: 'presenza-app.appspot.com',
+    apiKey: 'AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA',  // Browser key (auto created by Firebase)
+    appId: 'PASTE_YOUR_WEB_APP_ID_HERE',             // ← From Firebase Console → Project Settings → Your apps → Web → App ID (format: 1:735183066067:web:XXXX)
+    messagingSenderId: '735183066067',
+    projectId: 'presenza-9115c',
+    authDomain: 'presenza-9115c.firebaseapp.com',
+    databaseURL: 'https://presenza-9115c-default-rtdb.firebaseio.com',
+    storageBucket: 'presenza-9115c.appspot.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDummyKeyForAndroidConfig0000000',
-    appId: '1:1234567890:android:dummy123456',
-    messagingSenderId: '1234567890',
-    projectId: 'presenza-app',
-    databaseURL: 'https://presenza-app-default-rtdb.firebaseio.com',
-    storageBucket: 'presenza-app.appspot.com',
+    apiKey: 'AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA',  // Android key (auto created by Firebase)
+    appId: 'PASTE_YOUR_ANDROID_APP_ID_HERE',          // ← From google-services.json → mobilesdk_app_id (format: 1:735183066067:android:XXXX)
+    messagingSenderId: '735183066067',
+    projectId: 'presenza-9115c',
+    databaseURL: 'https://presenza-9115c-default-rtdb.firebaseio.com',
+    storageBucket: 'presenza-9115c.appspot.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDummyKeyForIosConfig00000000000',
-    appId: '1:1234567890:ios:dummy123456',
-    messagingSenderId: '1234567890',
-    projectId: 'presenza-app',
-    databaseURL: 'https://presenza-app-default-rtdb.firebaseio.com',
-    storageBucket: 'presenza-app.appspot.com',
+    apiKey: 'PASTE_YOUR_IOS_API_KEY_HERE',            // ← From GoogleService-Info.plist → API_KEY
+    appId: 'PASTE_YOUR_IOS_APP_ID_HERE',               // ← From GoogleService-Info.plist → GOOGLE_APP_ID
+    messagingSenderId: '735183066067',
+    projectId: 'presenza-9115c',
+    databaseURL: 'https://presenza-9115c-default-rtdb.firebaseio.com',
+    storageBucket: 'presenza-9115c.appspot.com',
     iosBundleId: 'com.example.presenza',
   );
 }
