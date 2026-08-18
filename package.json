@@ -1,0 +1,11 @@
+{
+  "name": "presenza",
+  "version": "1.0.0",
+  "description": "Presenza - Flutter Web Application",
+  "scripts": {
+    "build": "bash build.sh"
+  },
+  "keywords": ["flutter", "presenza", "web"],
+  "author": "Bajpai-Mayank",
+  "license": "MIT"
+}
