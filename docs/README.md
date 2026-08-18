@@ -118,3 +118,17 @@ Every time changes are pushed to the `main` branch, a GitHub Actions workflow au
 3. Under **Assets**, click on **`app-release.apk`** to download it to your Android device.
 4. Open the downloaded file on your device to install the application. 
    *(Note: You may need to enable "Install from Unknown Sources" in your device settings).*
+
+---
+
+## 6. Deploy & Host on Vercel (Flutter Web)
+
+The application includes a `vercel.json` configuration and a custom `build.sh` script to automate building the Flutter Web build directly inside the Vercel cloud environment.
+
+### Setup Steps:
+1. Log in to your **Vercel** dashboard (`https://vercel.com/`).
+2. Click **Add New Project** and select this GitHub repository (`Bajpai-Mayank/Presenza`).
+3. Under the **Build and Development Settings**:
+   * **Build Command**: `bash build.sh`
+   * **Output Directory**: `build/web`
+4. Click **Deploy**. Vercel will clone the Flutter stable branch, build the web application, and serve it on a secure `vercel.app` URL.
