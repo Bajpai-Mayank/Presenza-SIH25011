@@ -1,3 +1,4 @@
 {
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "java.jdt.ls.java.home": "C:\\Users\\Hp\\AppData\\Local\\Programs\\Android Studio\\jbr"
 }
