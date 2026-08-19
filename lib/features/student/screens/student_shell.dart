@@ -5,6 +5,7 @@ import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/data/mock/seed_data.dart';
+import 'package:presenza/features/student/screens/mock_camera_screen.dart';
 
 class StudentShell extends ConsumerStatefulWidget {
   const StudentShell({super.key});
@@ -42,8 +43,8 @@ class _StudentShellState extends ConsumerState<StudentShell> {
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notification Center coming soon!')),
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MockCameraScreen()),
               );
             },
           ),
@@ -204,8 +205,10 @@ class _StudentHomeTab extends ConsumerWidget {
           // QR Scanner CTA Card
           GlassCard(
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Mock Camera QR Scanning initialized!')),
+              // TODO: Replace mock with real camera QR scanning implementation.
+              // For now, navigate to a placeholder QR scanner screen.
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QrScannerScreen()),
               );
             },
             child: Row(

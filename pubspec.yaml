@@ -41,6 +41,13 @@ dependencies:
 
   # Local Storage
   shared_preferences: ^2.5.3
+  # Firebase Storage & Messaging
+  firebase_storage: ^12.1.2
+  firebase_messaging: ^15.0.2
+  # Image picker & colour picker UI
+  image_picker: ^1.0.7
+  flutter_colorpicker: ^1.0.4
+  shared_preferences: ^2.5.3
 
   # Utilities
   intl: ^0.20.2
