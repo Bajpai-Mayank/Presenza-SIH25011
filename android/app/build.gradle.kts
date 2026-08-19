@@ -45,10 +45,5 @@ flutter {
     source = "../.."
 }
 dependencies {
-    // Import the Firebase BoM (Bill of Materials)
-    implementation(platform("com.google.firebase:firebase-bom:33.2.0"))
-    // Add the Firebase SDKs you need
-    implementation("com.google.firebase:firebase-analytics")
-    // Example: implementation("com.google.firebase:firebase-auth")
-    // Example: implementation("com.google.firebase:firebase-firestore")
+    // Firebase dependencies are managed by FlutterFire plugins.
 }
