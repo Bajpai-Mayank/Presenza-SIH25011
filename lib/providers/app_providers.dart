@@ -43,6 +43,12 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════════════════
+
+/// Authentication state — holds the currently logged-in [UserModel].
+final authStateProvider =
+    StateNotifierProvider<AuthNotifier, UserModel?>((ref) {
   return AuthNotifier();
 });
 

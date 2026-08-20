@@ -13,23 +13,6 @@ class DefaultFirebaseOptions {
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
-      case TargetPlatform.iOS:
-        return ios;
-      case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
-      case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
-      case TargetPlatform.linux:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -37,9 +20,12 @@ class DefaultFirebaseOptions {
     }
   }
 
+  // ─── WEB ────────────────────────────────────────────────────────────
+  // apiKey: from Firebase Console → Project Settings → Web app
+  // appId:  from Firebase Console → Project Settings → Web app → App ID
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA',  // Browser key (auto created by Firebase)
-    appId: 'PASTE_YOUR_WEB_APP_ID_HERE',             // ← From Firebase Console → Project Settings → Your apps → Web → App ID (format: 1:735183066067:web:XXXX)
+    apiKey: 'PASTE_YOUR_WEB_API_KEY_HERE',
+    appId: 'PASTE_YOUR_WEB_APP_ID_HERE',
     messagingSenderId: '735183066067',
     projectId: 'presenza-9115c',
     authDomain: 'presenza-9115c.firebaseapp.com',
@@ -47,22 +33,15 @@ class DefaultFirebaseOptions {
     storageBucket: 'presenza-9115c.appspot.com',
   );
 
+  // ─── ANDROID ────────────────────────────────────────────────────────
+  // apiKey: from google-services.json → api_key → current_key
+  // appId:  from google-services.json → client_info → mobilesdk_app_id
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA',  // Android key (auto created by Firebase)
-    appId: 'PASTE_YOUR_ANDROID_APP_ID_HERE',          // ← From google-services.json → mobilesdk_app_id (format: 1:735183066067:android:XXXX)
+    apiKey: 'PASTE_YOUR_ANDROID_API_KEY_HERE',
+    appId: 'PASTE_YOUR_ANDROID_APP_ID_HERE',
     messagingSenderId: '735183066067',
     projectId: 'presenza-9115c',
     databaseURL: 'https://presenza-9115c-default-rtdb.firebaseio.com',
     storageBucket: 'presenza-9115c.appspot.com',
-  );
-
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'PASTE_YOUR_IOS_API_KEY_HERE',            // ← From GoogleService-Info.plist → API_KEY
-    appId: 'PASTE_YOUR_IOS_APP_ID_HERE',               // ← From GoogleService-Info.plist → GOOGLE_APP_ID
-    messagingSenderId: '735183066067',
-    projectId: 'presenza-9115c',
-    databaseURL: 'https://presenza-9115c-default-rtdb.firebaseio.com',
-    storageBucket: 'presenza-9115c.appspot.com',
-    iosBundleId: 'com.example.presenza',
   );
 }
