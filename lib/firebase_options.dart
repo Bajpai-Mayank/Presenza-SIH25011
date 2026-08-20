@@ -20,28 +20,22 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // ─── WEB ────────────────────────────────────────────────────────────
-  // apiKey: from Firebase Console → Project Settings → Web app
-  // appId:  from Firebase Console → Project Settings → Web app → App ID
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'PASTE_YOUR_WEB_API_KEY_HERE',
-    appId: 'PASTE_YOUR_WEB_APP_ID_HERE',
+    apiKey: 'AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA',
+    appId: '1:735183066067:web:PASTE_YOUR_WEB_APP_ID_HERE',
     messagingSenderId: '735183066067',
     projectId: 'presenza-9115c',
     authDomain: 'presenza-9115c.firebaseapp.com',
-    databaseURL: 'https://presenza-9115c-default-rtdb.firebaseio.com',
-    storageBucket: 'presenza-9115c.appspot.com',
+    databaseURL: 'https://presenza-9115c-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'presenza-9115c.firebasestorage.app',
   );
 
-  // ─── ANDROID ────────────────────────────────────────────────────────
-  // apiKey: from google-services.json → api_key → current_key
-  // appId:  from google-services.json → client_info → mobilesdk_app_id
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'PASTE_YOUR_ANDROID_API_KEY_HERE',
-    appId: 'PASTE_YOUR_ANDROID_APP_ID_HERE',
+    apiKey: 'AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA',
+    appId: '1:735183066067:android:76a5704526e39dceefd526',
     messagingSenderId: '735183066067',
     projectId: 'presenza-9115c',
-    databaseURL: 'https://presenza-9115c-default-rtdb.firebaseio.com',
-    storageBucket: 'presenza-9115c.appspot.com',
+    databaseURL: 'https://presenza-9115c-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'presenza-9115c.firebasestorage.app',
   );
 }
