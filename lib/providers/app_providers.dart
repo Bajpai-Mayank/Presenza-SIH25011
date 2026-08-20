@@ -7,9 +7,7 @@ import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/data/models/user_model.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:presenza/models/user_profile.dart';
+
 
 // ══════════════════════════════════════════════════════════════════════
 // THEME
