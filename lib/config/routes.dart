@@ -4,6 +4,7 @@ import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/data/models/auth_state.dart';
 import 'package:presenza/features/auth/screens/login_screen.dart';
+import 'package:presenza/features/auth/screens/register_screen.dart';
 import 'package:presenza/features/auth/screens/forgot_password_screen.dart';
 import 'package:presenza/features/auth/screens/no_profile_screen.dart';
 
@@ -21,7 +22,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final currentLoc = state.matchedLocation;
       final isAuthRoute = currentLoc == '/login' ||
-          currentLoc == '/forgot-password';
+          currentLoc == '/forgot-password' ||
+          currentLoc == '/register';
       final isNoProfileRoute = currentLoc == '/no-profile';
 
       // While auth is initializing, stay on login (the UI shows loading)
@@ -91,6 +93,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
         path: '/forgot-password',

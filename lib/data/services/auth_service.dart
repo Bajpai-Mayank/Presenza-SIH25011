@@ -20,8 +20,8 @@ class AuthResult {
 
 /// Dedicated Firebase Authentication service.
 ///
-/// Wraps all Firebase Auth operations with proper error handling
-/// and user-friendly error messages. No dependency on SeedData.
+/// Wraps all Firebase Auth operations with robust error handling
+/// and user-friendly error messages designed for production Firebase deployment.
 class AuthService {
   final FirebaseAuth _auth;
 

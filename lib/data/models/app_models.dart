@@ -366,4 +366,32 @@ class ClassScheduleEntry {
     required this.endTime,
     this.attendanceStatus,
   });
+
+  factory ClassScheduleEntry.fromJson(Map<String, dynamic> json) =>
+      ClassScheduleEntry(
+        subjectId: json['subjectId'] as String? ?? '',
+        subjectName: json['subjectName'] as String? ?? '',
+        teacherName: json['teacherName'] as String? ?? '',
+        room: json['room'] as String? ?? '',
+        startTime: json['startTime'] != null
+            ? DateTime.parse(json['startTime'] as String)
+            : DateTime.now(),
+        endTime: json['endTime'] != null
+            ? DateTime.parse(json['endTime'] as String)
+            : DateTime.now().add(const Duration(hours: 1)),
+        attendanceStatus: json['attendanceStatus'] != null
+            ? AttendanceStatus.fromString(json['attendanceStatus'] as String)
+            : null,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'subjectId': subjectId,
+        'subjectName': subjectName,
+        'teacherName': teacherName,
+        'room': room,
+        'startTime': startTime.toIso8601String(),
+        'endTime': endTime.toIso8601String(),
+        'attendanceStatus': attendanceStatus?.name,
+      };
 }
+

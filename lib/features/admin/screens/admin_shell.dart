@@ -106,6 +106,12 @@ class _AdminDashboardTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final students = ref.watch(allStudentsProvider);
     final teachers = ref.watch(allTeachersProvider);
+    final leaderboard = ref.watch(leaderboardProvider);
+
+    final double avgAttendance = leaderboard.isNotEmpty
+        ? leaderboard.fold<double>(0.0, (s, e) => s + e.attendancePercentage) / leaderboard.length
+        : 0.0;
+    final int belowThreshold = leaderboard.where((e) => e.attendancePercentage < 75.0).length;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -138,18 +144,18 @@ class _AdminDashboardTab extends ConsumerWidget {
               Expanded(
                 child: StatCard(
                   label: 'Avg Attendance',
-                  value: '88.4%',
+                  value: avgAttendance > 0 ? '${avgAttendance.toStringAsFixed(1)}%' : '0%',
                   icon: Icons.trending_up,
-                  iconColor: AppColors.success,
+                  iconColor: avgAttendance >= 75 ? AppColors.success : AppColors.warning,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: StatCard(
                   label: 'Below Threshold',
-                  value: '1',
+                  value: belowThreshold.toString(),
                   icon: Icons.warning_amber_rounded,
-                  iconColor: AppColors.error,
+                  iconColor: belowThreshold > 0 ? AppColors.error : AppColors.success,
                 ),
               ),
             ],
@@ -167,7 +173,9 @@ class _AdminDashboardTab extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Today\'s overall check-in rate is 92.4% with QR validation enabled. There are currently no system downtime issues reported.',
+                  avgAttendance > 0
+                      ? 'Current campus-wide student attendance average is ${avgAttendance.toStringAsFixed(1)}% across ${students.length} registered students with QR validation active.'
+                      : 'No session attendance data recorded yet. Live student check-in analytics will populate automatically as classes occur.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -261,6 +269,8 @@ class _AdminUsersTabState extends ConsumerState<_AdminUsersTab> {
     UserRole selectedRole = UserRole.student;
     bool isCreating = false;
     final formKey = GlobalKey<FormState>();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
     showDialog(
       context: context,
@@ -309,7 +319,7 @@ class _AdminUsersTabState extends ConsumerState<_AdminUsersTab> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<UserRole>(
-                    value: selectedRole,
+                    initialValue: selectedRole,
                     decoration: const InputDecoration(
                       labelText: 'Role',
                       prefixIcon: Icon(Icons.admin_panel_settings_outlined),
@@ -343,9 +353,9 @@ class _AdminUsersTabState extends ConsumerState<_AdminUsersTab> {
                       setDialogState(() => isCreating = true);
 
                       try {
-                        // Save current admin credentials to re-auth after
                         final adminUser = FirebaseAuth.instance.currentUser;
-                        final adminEmail = adminUser?.email;
+                        final adminUid = adminUser?.uid ?? 'system';
+                        final adminName = adminUser?.displayName ?? adminUser?.email ?? 'Administrator';
 
                         // Create the new user's Firebase Auth account
                         final credential = await FirebaseAuth.instance
@@ -357,7 +367,7 @@ class _AdminUsersTabState extends ConsumerState<_AdminUsersTab> {
                         final newUid = credential.user!.uid;
                         final now = DateTime.now();
 
-                        // Create Firestore profile
+                        // Create Firestore base profile
                         final userModel = UserModel(
                           id: newUid,
                           email: emailCtrl.text.trim(),
@@ -370,47 +380,68 @@ class _AdminUsersTabState extends ConsumerState<_AdminUsersTab> {
                         final firestoreService = FirestoreService();
                         await firestoreService.saveUserModel(userModel);
 
+                        // Save role-specific document
+                        if (selectedRole == UserRole.student) {
+                          final studentModel = StudentModel(
+                            user: userModel,
+                            studentId: 'STU-${now.millisecondsSinceEpoch.toString().substring(7)}',
+                            courseId: '',
+                            batchId: '',
+                            semester: 1,
+                            enrollmentDate: now,
+                          );
+                          await firestoreService.saveStudentProfile(studentModel);
+                        } else if (selectedRole == UserRole.teacher) {
+                          final teacherModel = TeacherModel(
+                            user: userModel,
+                            employeeId: 'EMP-${now.millisecondsSinceEpoch.toString().substring(7)}',
+                            departmentId: 'dept-cse',
+                            subjectIds: [],
+                          );
+                          await firestoreService.saveTeacherProfile(teacherModel);
+                        }
+
+                        // Write audit log entry
+                        await firestoreService.logAdminAction(
+                          userId: adminUid,
+                          userName: adminName,
+                          action: 'PROVISION_USER',
+                          entityType: 'USER',
+                          entityId: newUid,
+                          details: 'Provisioned ${selectedRole.displayName} account for ${nameCtrl.text.trim()} (${emailCtrl.text.trim()})',
+                        );
+
                         // Sign out the newly created user
                         await FirebaseAuth.instance.signOut();
 
-                        // Note: The admin will need to sign back in.
-                        // This is a known limitation of client-side user creation.
-                        // For production, use Firebase Admin SDK via Cloud Functions.
-
-                        if (mounted) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'User ${nameCtrl.text.trim()} created successfully. '
-                                'You have been signed out — please sign back in.',
-                              ),
-                              backgroundColor: AppColors.success,
-                              duration: const Duration(seconds: 5),
+                        navigator.pop();
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'User ${nameCtrl.text.trim()} created successfully. '
+                              'Please sign back in with your admin account.',
                             ),
-                          );
-                        }
+                            backgroundColor: AppColors.success,
+                            duration: const Duration(seconds: 5),
+                          ),
+                        );
                       } on FirebaseAuthException catch (e) {
                         setDialogState(() => isCreating = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  e.message ?? 'Failed to create user.'),
-                              backgroundColor: AppColors.error,
-                            ),
-                          );
-                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                e.message ?? 'Failed to create user.'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
                       } catch (e) {
                         setDialogState(() => isCreating = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: $e'),
-                              backgroundColor: AppColors.error,
-                            ),
-                          );
-                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text('Error: $e'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
                       }
                     },
               child: isCreating

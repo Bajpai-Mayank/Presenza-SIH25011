@@ -3,9 +3,27 @@ import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/data/models/course_model.dart';
+import 'package:presenza/core/enums/attendance_status.dart';
+import 'package:presenza/core/enums/enums.dart';
+import 'package:uuid/uuid.dart';
+
+/// Result of a transaction-based attendance marking operation.
+class AttendanceResult {
+  final bool success;
+  final String? errorMessage;
+  final AttendanceRecordModel? record;
+
+  const AttendanceResult.success(this.record)
+      : success = true,
+        errorMessage = null;
+  const AttendanceResult.failure(this.errorMessage)
+      : success = false,
+        record = null;
+}
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static const _uuid = Uuid();
 
   // ══════════════════════════════════════════════════════════════════════
   // USER PROFILES
@@ -164,12 +182,13 @@ class FirestoreService {
     return _db
         .collection('notifications')
         .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
+      final list = snapshot.docs
           .map((doc) => NotificationModel.fromJson(doc.data()))
           .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
     });
   }
 
@@ -247,12 +266,13 @@ class FirestoreService {
   Stream<List<AuditLogModel>> streamAuditLogs() {
     return _db
         .collection('audit_logs')
-        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
+      final list = snapshot.docs
           .map((doc) => AuditLogModel.fromJson(doc.data()))
           .toList();
+      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return list;
     });
   }
 
@@ -268,19 +288,13 @@ class FirestoreService {
   /// Stream today's schedule for a given course and batch.
   Stream<List<Map<String, dynamic>>> streamSchedule(
       String courseId, String batchId) {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final todayEnd = todayStart.add(const Duration(days: 1));
-
     return _db
         .collection('schedules')
         .where('courseId', isEqualTo: courseId)
-        .where('batchId', isEqualTo: batchId)
-        .where('date', isGreaterThanOrEqualTo: todayStart.toIso8601String())
-        .where('date', isLessThan: todayEnd.toIso8601String())
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) => doc.data()).toList();
+      final list = snapshot.docs.map((doc) => doc.data()).toList();
+      return list.where((item) => item['batchId'] == batchId).toList();
     });
   }
 
@@ -408,5 +422,298 @@ class FirestoreService {
           .map((doc) => UserModel.fromJson(doc.data()))
           .toList();
     });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // TRANSACTION-BASED ATTENDANCE
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Marks attendance using a Firestore transaction for atomicity.
+  ///
+  /// Validates: session exists & active, session not expired, student's
+  /// course/batch matches, and no duplicate attendance record exists.
+  Future<AttendanceResult> markAttendanceWithTransaction({
+    required String sessionId,
+    required String studentUid,
+    required String studentDisplayId,
+    required String studentCourseId,
+    required String studentBatchId,
+    bool locationVerified = false,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final result = await _db.runTransaction<AttendanceResult>((txn) async {
+        // 1. Read the session document
+        final sessionDoc =
+            await txn.get(_db.collection('sessions').doc(sessionId));
+        if (!sessionDoc.exists || sessionDoc.data() == null) {
+          return const AttendanceResult.failure(
+            'No session found for this QR code.',
+          );
+        }
+        final session = AttendanceSessionModel.fromJson(sessionDoc.data()!);
+
+        // 2. Validate session is still active
+        if (!session.isActive) {
+          return const AttendanceResult.failure(
+            'This attendance session has been closed.',
+          );
+        }
+
+        // 3. Validate session hasn't expired
+        if (DateTime.now().isAfter(session.endTime)) {
+          return const AttendanceResult.failure(
+            'This attendance session has expired.',
+          );
+        }
+
+        // 4. Validate course and batch
+        if (session.courseId != studentCourseId ||
+            session.batchId != studentBatchId) {
+          return const AttendanceResult.failure(
+            'This session is not for your class/batch.',
+          );
+        }
+
+        // 5. Check for duplicate attendance
+        final existingRecords = await _db
+            .collection('attendance_records')
+            .where('attendanceSessionId', isEqualTo: sessionId)
+            .where('studentId', isEqualTo: studentUid)
+            .limit(1)
+            .get();
+        if (existingRecords.docs.isNotEmpty) {
+          return const AttendanceResult.failure(
+            'You have already marked attendance for this session.',
+          );
+        }
+
+        // 6. Create the attendance record with a secure UUID
+        final now = DateTime.now();
+        final recordId = _uuid.v4();
+        final record = AttendanceRecordModel(
+          id: recordId,
+          studentId: studentUid,
+          attendanceSessionId: session.id,
+          subjectId: session.subjectId,
+          courseId: session.courseId,
+          teacherId: session.teacherId,
+          status: AttendanceStatus.present,
+          verificationMethod: VerificationMethod.qr,
+          timestamp: now,
+          locationVerified: locationVerified,
+          faceVerified: false,
+          latitude: latitude,
+          longitude: longitude,
+          createdAt: now,
+          updatedAt: now,
+        );
+
+        txn.set(
+          _db.collection('attendance_records').doc(recordId),
+          record.toJson(),
+        );
+
+        return AttendanceResult.success(record);
+      });
+
+      return result;
+    } catch (e) {
+      return AttendanceResult.failure('Failed to mark attendance: $e');
+    }
+  }
+
+  /// Get the number of students enrolled in a specific batch.
+  Future<int> getEnrolledStudentCount(String batchId) async {
+    final snapshot = await _db
+        .collection('students')
+        .where('batchId', isEqualTo: batchId)
+        .count()
+        .get();
+    return snapshot.count ?? 0;
+  }
+
+  /// Stream session history for a teacher (all sessions, newest first).
+  Stream<List<AttendanceSessionModel>> streamSessionHistory(
+      String teacherId) {
+    return _db
+        .collection('sessions')
+        .where('teacherId', isEqualTo: teacherId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => AttendanceSessionModel.fromJson(doc.data()))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Convenience: create an audit log entry for admin actions.
+  Future<void> logAdminAction({
+    required String userId,
+    required String userName,
+    required String action,
+    String entityType = 'USER',
+    String entityId = '',
+    String? details,
+  }) async {
+    final id = _uuid.v4();
+    final log = AuditLogModel(
+      id: id,
+      userId: userId,
+      userName: userName,
+      action: action,
+      entityType: entityType,
+      entityId: entityId.isNotEmpty ? entityId : id,
+      details: details,
+      timestamp: DateTime.now(),
+    );
+    await createAuditLog(log);
+  }
+
+  /// Get total attendance records count for computing admin stats.
+  Future<Map<String, int>> getAttendanceStats() async {
+    final allRecords = await _db.collection('attendance_records').get();
+    int totalPresent = 0;
+    int totalAbsent = 0;
+    int totalLate = 0;
+    int total = allRecords.docs.length;
+
+    for (final doc in allRecords.docs) {
+      final data = doc.data();
+      final status = data['status'] as String? ?? '';
+      switch (status) {
+        case 'present':
+          totalPresent++;
+          break;
+        case 'absent':
+          totalAbsent++;
+          break;
+        case 'late':
+          totalLate++;
+          break;
+      }
+    }
+
+    return {
+      'total': total,
+      'present': totalPresent,
+      'absent': totalAbsent,
+      'late': totalLate,
+    };
+  }
+
+  /// Seed initial academic data (courses, batches, subjects, policies) if not already created.
+  Future<void> seedInitialAcademicData() async {
+    try {
+      final coursesSnap = await _db.collection('courses').limit(1).get();
+      if (coursesSnap.docs.isEmpty) {
+        final now = DateTime.now();
+        // 1. Create Default Course
+        const course = CourseModel(
+          id: 'course-btech-cse',
+          name: 'B.Tech Computer Science & Engineering',
+          code: 'BTECH-CSE',
+          departmentId: 'dept-cse',
+          totalSemesters: 8,
+        );
+        await saveCourse(course);
+
+        // 2. Create Default Batches
+        const batchA = BatchModel(
+          id: 'batch-2024-a',
+          name: 'Batch 2024 - Section A',
+          courseId: 'course-btech-cse',
+          year: 2024,
+          section: 'A',
+        );
+        const batchB = BatchModel(
+          id: 'batch-2024-b',
+          name: 'Batch 2024 - Section B',
+          courseId: 'course-btech-cse',
+          year: 2024,
+          section: 'B',
+        );
+        await saveBatch(batchA);
+        await saveBatch(batchB);
+
+        // 3. Create Default Subjects
+        const subjects = [
+          SubjectModel(
+            id: 'sub-cs401',
+            name: 'Data Structures & Algorithms',
+            code: 'CS401',
+            courseId: 'course-btech-cse',
+            semester: 4,
+            credits: 4,
+            teacherId: '',
+          ),
+          SubjectModel(
+            id: 'sub-cs402',
+            name: 'Operating Systems',
+            code: 'CS402',
+            courseId: 'course-btech-cse',
+            semester: 4,
+            credits: 4,
+            teacherId: '',
+          ),
+          SubjectModel(
+            id: 'sub-cs403',
+            name: 'Database Management Systems',
+            code: 'CS403',
+            courseId: 'course-btech-cse',
+            semester: 4,
+            credits: 3,
+            teacherId: '',
+          ),
+          SubjectModel(
+            id: 'sub-cs404',
+            name: 'Computer Networks',
+            code: 'CS404',
+            courseId: 'course-btech-cse',
+            semester: 4,
+            credits: 3,
+            teacherId: '',
+          ),
+        ];
+        for (final sub in subjects) {
+          await saveSubject(sub);
+        }
+
+        // 4. Create Default Attendance Policy
+        const policy = AttendancePolicyModel(
+          id: 'policy-cse',
+          courseId: 'course-btech-cse',
+          minimumAttendancePercent: 75.0,
+          qrExpiryMinutes: 5,
+          locationRequired: false,
+          faceVerificationMode: FaceVerificationMode.disabled,
+          campusLat: 28.6139,
+          campusLng: 77.2090,
+          allowedRadiusMeters: 100.0,
+        );
+        await saveAttendancePolicy(policy);
+
+        // 5. Create Welcome Circular
+        final circular = CircularModel(
+          id: _uuid.v4(),
+          title: 'Welcome to Presenza Academic Portal',
+          content: 'The smart circular and dynamic attendance verification system is live. Students can check schedules and scan class QR codes.',
+          category: CircularCategory.academic,
+          priority: CircularPriority.important,
+          authorId: 'admin',
+          authorName: 'Academic Office',
+          targetCourseIds: ['course-btech-cse'],
+          publishDate: now,
+          createdAt: now,
+          updatedAt: now,
+        );
+        await saveCircular(circular);
+      }
+    } catch (e) {
+      // Ignore if offline
+    }
   }
 }

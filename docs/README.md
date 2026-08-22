@@ -1,19 +1,20 @@
-# Smart Circular — Application Documentation & Code Guide
+# Presenza — Application Documentation & Technical Guide
 
-Welcome to the **Smart Circular** documentation guide. This guide explains how the application is structured, how the premium monochrome glassmorphism design system works, and how you can run and extend it without experiencing Firebase issues.
+Welcome to the **Presenza** technical documentation. This guide details the production architecture, Firebase backend configuration, security model, and deployment workflows.
 
 ---
 
 ## 1. Project Architecture
 
-The application is built using a **Feature-based Clean Architecture** powered by **Riverpod** for reactive state management and **GoRouter** for declarative navigation.
+The application is engineered using **Clean Architecture** powered by **Riverpod** for reactive state management and **GoRouter** for declarative role-guarded navigation.
 
 ```
 lib/
-├── main.dart                        # Application entrypoint (Firebase try-caught)
+├── main.dart                        # Application entrypoint & Firebase initialization
 ├── app.dart                         # Root MaterialApp widget & theme configuration
+├── firebase_options.dart            # FlutterFire auto-generated platform configuration
 ├── config/
-│   ├── routes.dart                  # GoRouter configuration & role-based redirects
+│   ├── routes.dart                  # GoRouter configuration with role-based guards
 │   └── theme/
 │       ├── app_colors.dart          # Premium monochrome color tokens
 │       ├── app_theme.dart           # Light/Dark Material 3 Themes & typography
@@ -22,113 +23,96 @@ lib/
 │   └── enums/
 │       ├── enums.dart               # Category, priority, method enums
 │       ├── user_role.dart           # Role definitions: Student, Teacher, Admin
-│       └── attendance_status.dart   # Status definitions: Present, Absent, Late
+│       └── attendance_status.dart   # Status definitions: Present, Absent, Late, Excused
 ├── data/
-│   ├── models/                      # Type-safe data entities
-│   └── mock/
-│       └── seed_data.dart           # Mock repository with realistic database seed entries
+│   ├── models/                      # Strongly-typed data models (User, Student, Teacher, Attendance)
+│   └── services/                    # Production service layer
+│       ├── auth_service.dart        # Firebase Auth wrapper (sign in, password reset)
+│       ├── firestore_service.dart   # Cloud Firestore CRUD & atomic transactions
+│       └── location_service.dart    # GPS geofencing & classroom distance verification
 ├── providers/
-│   └── app_providers.dart           # StateNotifier & Provider definitions
+│   └── app_providers.dart           # Riverpod providers & state notifiers
 ├── shared/
 │   └── widgets/
 │       └── shared_widgets.dart      # Custom GlassCard, GlassButton, StatCard library
 └── features/
-    ├── auth/screens/                # Splash & Glassmorphic Login screens
-    ├── student/screens/             # Student panel and tabs (Home, Attendance, Notices)
-    ├── teacher/screens/             # Teacher controls (QR Code Generator, Student Directory)
-    └── admin/screens/               # Admin dashboards (Analytics, Policies, Audit Logs)
+    ├── auth/screens/                # Login, Forgot Password, Missing Profile screens
+    ├── student/screens/             # Student panel (Home, Attendance, Notices, Scanner, Profile)
+    ├── teacher/screens/             # Teacher panel (Dashboard, QR Generator, Directory, Circulars)
+    └── admin/screens/               # Admin panel (Analytics, Policies, User Directory, Audit Logs)
 ```
 
 ---
 
-## 2. Temporary Firebase Bypass (Mock / Offline Mode)
+## 2. Authentication & Authorization Flow
 
-To prevent Firebase connection issues from breaking local execution, we have designed the codebase with a fallback system:
+Presenza enforces a strict role-based authentication model directly tied to Firebase:
 
-1. **Robust Startup**: In [`lib/main.dart`](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/main.dart), the initialization is wrapped in a `try-catch` block:
-   ```dart
-   try {
-     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-   } catch (e) {
-     debugPrint('Firebase initialization failed: $e. Running in mock offline mode.');
-   }
-   ```
-2. **Unified State Providers**: All screen components read state through Riverpod providers in [`lib/providers/app_providers.dart`](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/providers/app_providers.dart) instead of making direct Firestore calls.
-3. **Seed Database**: The providers serve highly detailed mock data from [`lib/data/mock/seed_data.dart`](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/data/mock/seed_data.dart).
+1. **Authentication**: Handled via `FirebaseAuth.instance`.
+2. **Profile Resolution**: When auth state changes, `AuthStatusNotifier` queries `/users/{uid}` on Firestore:
+   - If the user exists and has a valid role (`student`, `teacher`, `admin`), `AuthState.authenticated(userModel)` is set.
+   - If authenticated in Firebase Auth but no Firestore document exists, `AuthState.profileMissing()` redirects to `/no-profile`.
+   - If unauthenticated, the user is redirected to `/login`.
+3. **Role Guards**: `GoRouter` prevents students from accessing `/teacher` or `/admin` routes, and vice versa.
 
 ---
 
-## 3. Key Components Explained
+## 3. Real-Time Attendance System
 
-### Glassmorphism System
-Our design relies on the `GlassCard` wrapper widget inside [`lib/shared/widgets/shared_widgets.dart`](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/shared/widgets/shared_widgets.dart). It applies a real-time blur and semi-transparent borders:
-```dart
-ClipRRect(
-  borderRadius: BorderRadius.circular(radius),
-  child: BackdropFilter(
-    filter: glass.blurFilter, // Smooth real-time blur
-    child: Container(
-      decoration: BoxDecoration(
-        color: glass.fillColor,
-        border: Border.all(color: glass.borderColor),
-      ),
-      child: child,
-    ),
-  ),
-)
-```
+### Teacher QR Code Generation
+- The teacher selects an assigned subject, target batch, and duration (in minutes).
+- A cryptographically unique `AttendanceSessionModel` is written to `/sessions/{sessionId}` in Firestore.
+- The session displays a dynamic QR code containing the session ID.
+- Active students checking in are streamed in real time to the teacher's dashboard via `streamAttendanceRecordsForSession`.
 
-### QR Code Generator (Teacher Side)
-The QR generator in [`lib/features/teacher/screens/teacher_shell.dart`](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/teacher/screens/teacher_shell.dart) generates active QR codes using `qr_flutter`. It tracks time remaining and count of active students:
-* Tapping **Generate** instantiates an `AttendanceSessionModel` with a temporary token.
-* A timer starts decrementing and counts checking-in students dynamically.
-
-### Navigation Rules
-The routing is managed by `GoRouter` inside [`lib/config/routes.dart`](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/config/routes.dart). It enforces:
-* **Authentication Guard**: Unauthenticated users are redirected to `/login`.
-* **Role Redirection**: Authenticated users are automatically routed to `/student`, `/teacher`, or `/admin` depending on their role profile.
+### Student Attendance Verification
+- The student scans the teacher's QR code using the integrated camera scanner (`mobile_scanner`).
+- **Batch Verification**: The app ensures the student belongs to the course and batch assigned to the session.
+- **Location Verification**: If `locationRequired` is enabled on the session, `LocationService` checks device GPS coordinates using the Haversine formula to ensure the student is within classroom bounds.
+- **Atomic Transactions**: Attendance submission is executed via Firestore `runTransaction` to atomically guarantee:
+  1. The session is active and unexpired.
+  2. No duplicate attendance records exist for the student in this session.
+  3. A new `AttendanceRecordModel` with UUID is committed.
 
 ---
 
-## 4. Run & Test the App
+## 4. Firestore Security Rules
 
-1. Ensure packages are installed:
+All database operations are strictly protected by `firestore.rules`:
+- **Users**: Users can only read/update their own profile. Only Admins can modify user roles or provision new accounts.
+- **Attendance Records**: Students can create attendance records only for their own UID. Only teachers of the session or admins can edit records.
+- **Sessions**: Only teachers and admins can create and manage attendance sessions.
+- **Audit Logs**: Read and write access is restricted strictly to Admins.
+
+---
+
+## 5. Running the Application
+
+1. **Fetch dependencies**:
    ```bash
    flutter pub get
    ```
-2. Run static analysis:
+2. **Run static analysis**:
    ```bash
    flutter analyze
    ```
-3. Run on device or simulator:
+3. **Execute unit & widget tests**:
+   ```bash
+   flutter test
+   ```
+4. **Run on connected device**:
    ```bash
    flutter run
    ```
-4. **Log in instantly** by clicking any of the **Quick Demo Access** chips (Student, Teacher, Admin) on the login screen.
 
 ---
 
-## 5. Download & Install Android APK from GitHub
+## 6. Build & CI/CD
 
-Every time changes are pushed to the `main` branch, a GitHub Actions workflow automatically builds the release APK and updates the repository release.
+### Android APK Build
+```bash
+flutter build apk --release
+```
 
-### How to Install:
-1. Go to the **Releases** page of this GitHub repository: `https://github.com/Bajpai-Mayank/Presenza/releases`.
-2. Locate the release tagged **`latest`** (titled **Latest Smart Circular Build**).
-3. Under **Assets**, click on **`app-release.apk`** to download it to your Android device.
-4. Open the downloaded file on your device to install the application. 
-   *(Note: You may need to enable "Install from Unknown Sources" in your device settings).*
-
----
-
-## 6. Deploy & Host on Vercel (Flutter Web)
-
-The application includes a `vercel.json` configuration and a custom `build.sh` script to automate building the Flutter Web build directly inside the Vercel cloud environment.
-
-### Setup Steps:
-1. Log in to your **Vercel** dashboard (`https://vercel.com/`).
-2. Click **Add New Project** and select this GitHub repository (`Bajpai-Mayank/Presenza`).
-3. Under the **Build and Development Settings**:
-   * **Build Command**: `bash build.sh`
-   * **Output Directory**: `build/web`
-4. Click **Deploy**. Vercel will clone the Flutter stable branch, build the web application, and serve it on a secure `vercel.app` URL.
+### Flutter Web Deployment
+The repository includes automated build configuration for Vercel/Firebase Hosting via `build.sh`.

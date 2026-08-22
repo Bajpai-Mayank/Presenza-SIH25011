@@ -22,7 +22,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBusbbSBtuR-ozyhOyko7J6Z_j3p1gtNbA',
-    appId: '1:735183066067:web:PASTE_YOUR_WEB_APP_ID_HERE',
+    appId: '1:735183066067:web:76a5704526e39dceefd526',
     messagingSenderId: '735183066067',
     projectId: 'presenza-9115c',
     authDomain: 'presenza-9115c.firebaseapp.com',

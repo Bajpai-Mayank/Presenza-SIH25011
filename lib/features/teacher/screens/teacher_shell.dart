@@ -6,6 +6,7 @@ import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:async';
+import 'package:uuid/uuid.dart';
 import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/data/models/course_model.dart';
 
@@ -138,8 +139,8 @@ class _TeacherDashboardTab extends ConsumerWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: StatCard(
-                  label: 'Today\'s Classes',
-                  value: '2',
+                  label: 'Active Subjects',
+                  value: subjects.isNotEmpty ? subjects.length.toString() : '0',
                   icon: Icons.calendar_today,
                 ),
               ),
@@ -153,32 +154,41 @@ class _TeacherDashboardTab extends ConsumerWidget {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
-          ...subjects.map(
-            (sub) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: GlassCard(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          sub.name,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          '${sub.code} • ${sub.credits} Credits',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                    const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gray400),
-                  ],
+          if (subjects.isEmpty)
+            GlassCard(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'No subjects assigned yet.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray400),
+              ),
+            )
+          else
+            ...subjects.map(
+              (sub) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: GlassCard(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            sub.name,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            '${sub.code} • ${sub.credits} Credits',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gray400),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -203,6 +213,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
   String? _selectedSubjectId;
   String? _selectedBatchId;
   final _durationController = TextEditingController(text: '5');
+  static const _uuid = Uuid();
 
   final FirestoreService _firestoreService = FirestoreService();
 
@@ -221,8 +232,9 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
     });
 
     final now = DateTime.now();
+    final sessionId = _uuid.v4();
     final session = AttendanceSessionModel(
-      id: 'session-${now.millisecondsSinceEpoch}',
+      id: sessionId,
       subjectId: _selectedSubjectId!,
       teacherId: teacherId,
       courseId: courseId,
@@ -231,10 +243,12 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
       startTime: now,
       endTime: now.add(Duration(minutes: duration)),
       isActive: true,
-      qrToken: 'session-${now.millisecondsSinceEpoch}', // QR is the session ID itself
+      qrToken: sessionId,
       createdAt: now,
-      locationRequired: true,
-      allowedRadiusMeters: 100,
+      locationRequired: false,
+      campusLat: 28.5355,
+      campusLng: 77.3910,
+      allowedRadiusMeters: 200,
     );
 
     // Save to Firestore
@@ -279,6 +293,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
     final activeSession = ref.watch(activeAttendanceSessionProvider);
     final teacher = ref.watch(teacherProfileProvider);
     final subjects = ref.watch(teacherSubjectsProvider);
+    final allStudents = ref.watch(allStudentsProvider);
 
     if (teacher == null) return const LoadingState();
 
@@ -293,9 +308,14 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
       orElse: () => subjects.isNotEmpty ? subjects.first : const SubjectModel(id: '', name: '', code: '', courseId: '', semester: 0, credits: 0, teacherId: ''),
     );
 
+    final batches = (ref.watch(batchesProvider).valueOrNull ?? [])
+        .where((b) => b.courseId == selectedSubject.courseId || selectedSubject.courseId.isEmpty)
+        .toList();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!_isGenerating) ...[
             // Setup session view
@@ -311,7 +331,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                   
                   // Subject Selection Dropdown
                   DropdownButtonFormField<String>(
-                    initialValue: _selectedSubjectId,
+                    initialValue: subjects.any((s) => s.id == _selectedSubjectId) ? _selectedSubjectId : (subjects.isNotEmpty ? subjects.first.id : null),
                     decoration: InputDecoration(
                       labelText: 'Subject',
                       prefixIcon: const Icon(Icons.book_outlined),
@@ -331,7 +351,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
 
                   // Batch Selection Dropdown
                   DropdownButtonFormField<String>(
-                    initialValue: _selectedBatchId,
+                    initialValue: batches.any((b) => b.id == _selectedBatchId) ? _selectedBatchId : (batches.isNotEmpty ? batches.first.id : null),
                     decoration: InputDecoration(
                       labelText: 'Batch',
                       prefixIcon: const Icon(Icons.group_outlined),
@@ -339,7 +359,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                       fillColor: Colors.transparent,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    items: (ref.watch(batchesProvider).value ?? []).where((b) => b.courseId == selectedSubject.courseId).map((batch) {
+                    items: batches.map((batch) {
                       return DropdownMenuItem(
                         value: batch.id,
                         child: Text(batch.name),
@@ -358,21 +378,83 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                   const SizedBox(height: 24),
                   GlassButton(
                     label: 'Generate Attendance QR',
-                    onPressed: () => _startSession(teacher.user.id, selectedSubject.courseId),
+                    onPressed: () => _startSession(
+                      teacher.user.id,
+                      selectedSubject.courseId.isNotEmpty ? selectedSubject.courseId : 'general',
+                    ),
                   ),
                 ],
               ),
+            ),
+            const SizedBox(height: 24),
+
+            // Recent Sessions Section
+            Text(
+              'Recent Sessions',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            StreamBuilder<List<AttendanceSessionModel>>(
+              stream: _firestoreService.streamSessionHistory(teacher.user.id),
+              builder: (context, snapshot) {
+                final sessions = snapshot.data ?? [];
+                if (sessions.isEmpty) {
+                  return GlassCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'No past sessions recorded yet.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray400),
+                    ),
+                  );
+                }
+                return ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: sessions.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final s = sessions[index];
+                    final sub = subjects.where((sub) => sub.id == s.subjectId).firstOrNull;
+                    return GlassCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                sub?.name ?? s.subjectId,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '${s.date.day}/${s.date.month}/${s.date.year} • ${s.startTime.hour}:${s.startTime.minute.toString().padLeft(2, '0')}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                          StatusBadge(
+                            label: s.isActive ? 'Active' : 'Closed',
+                            color: s.isActive ? AppColors.success : AppColors.gray400,
+                            small: true,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ] else ...[
             // Active QR View
             if (activeSession != null) ...[
               Text(
-                selectedSubject.name,
+                selectedSubject.name.isNotEmpty ? selectedSubject.name : 'Attendance Session',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
-                'Live Session Active',
+                'Live Session Active — Session Code: ${activeSession.id.substring(0, 8)}...',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success),
               ),
               const SizedBox(height: 24),
@@ -441,11 +523,12 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                                 separatorBuilder: (context, index) => const Divider(height: 12),
                                 itemBuilder: (context, index) {
                                   final rec = records[index];
+                                  final std = allStudents.where((s) => s.user.id == rec.studentId || s.studentId == rec.studentId).firstOrNull;
                                   return Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        rec.studentId, // Shows Roll No (e.g. CS2024001)
+                                        std != null ? '${std.user.name} (${std.studentId})' : rec.studentId,
                                         style: Theme.of(context).textTheme.bodyMedium,
                                       ),
                                       Row(

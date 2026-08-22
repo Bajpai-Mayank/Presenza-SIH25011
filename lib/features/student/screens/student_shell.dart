@@ -4,7 +4,7 @@ import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/core/enums/enums.dart';
-import 'package:presenza/features/student/screens/mock_camera_screen.dart';
+import 'package:presenza/features/student/screens/qr_scanner_screen.dart';
 
 class StudentShell extends ConsumerStatefulWidget {
   const StudentShell({super.key});
@@ -24,9 +24,103 @@ class _StudentShellState extends ConsumerState<StudentShell> {
     'Profile',
   ];
 
+  void _showNotifications(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Consumer(
+        builder: (context, ref, _) {
+          final notifs = ref.watch(notificationsProvider);
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Notifications',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      if (notifs.isNotEmpty)
+                        TextButton(
+                          onPressed: () => ref.read(notificationsProvider.notifier).markAllAsRead(),
+                          child: const Text('Mark all as read'),
+                        ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: notifs.isEmpty
+                      ? const Center(
+                          child: Text('No new notifications'),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          itemCount: notifs.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final n = notifs[index];
+                            return GlassCard(
+                              padding: const EdgeInsets.all(14),
+                              onTap: () {
+                                if (!n.isRead) {
+                                  ref.read(notificationsProvider.notifier).markAsRead(n.id);
+                                }
+                              },
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(
+                                    n.isRead ? Icons.notifications_none : Icons.notifications_active,
+                                    color: n.isRead ? AppColors.gray400 : AppColors.info,
+                                    size: 22,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          n.title,
+                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                fontWeight: n.isRead ? FontWeight.normal : FontWeight.bold,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          n.body,
+                                          style: Theme.of(context).textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
+
     final pages = [
       const _StudentHomeTab(),
       const _StudentAttendanceTab(),
@@ -39,13 +133,39 @@ class _StudentShellState extends ConsumerState<StudentShell> {
       appBar: AppBar(
         title: Text(_titles[_currentIndex]),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const MockCameraScreen()),
-              );
-            },
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () => _showNotifications(context),
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: AppColors.error,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           IconButton(
             icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
@@ -112,7 +232,8 @@ class _StudentHomeTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final student = ref.watch(studentProfileProvider);
     final overallAttendance = ref.watch(overallAttendanceProvider);
-    final schedule = ref.watch(todayScheduleProvider);
+    final scheduleAsync = ref.watch(todayScheduleProvider);
+    final schedule = scheduleAsync.value ?? [];
     final circulars = ref.watch(circularsProvider).take(2).toList();
     final streak = ref.watch(attendanceStreakProvider);
 
@@ -209,8 +330,6 @@ class _StudentHomeTab extends ConsumerWidget {
           // QR Scanner CTA Card
           GlassCard(
             onTap: () {
-              // TODO: Replace mock with real camera QR scanning implementation.
-              // For now, navigate to a placeholder QR scanner screen.
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const QrScannerScreen()),
               );
@@ -256,55 +375,72 @@ class _StudentHomeTab extends ConsumerWidget {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: schedule.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final item = schedule[index];
-              return GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          if (schedule.isEmpty)
+            GlassCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Icon(Icons.event_available_outlined, color: AppColors.gray400),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No classes scheduled for today.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray400),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: schedule.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final item = schedule[index];
+                return GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.subjectName,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            Text(
+                              '${item.teacherName} • ${item.room}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            item.subjectName,
-                            style: Theme.of(context).textTheme.titleMedium,
+                            '${item.startTime.hour}:${item.startTime.minute.toString().padLeft(2, '0')}',
+                            style: Theme.of(context).textTheme.labelSmall,
                           ),
-                          Text(
-                            '${item.teacherName} • ${item.room}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
+                          const SizedBox(height: 4),
+                          if (item.attendanceStatus != null)
+                            StatusBadge.present(small: true)
+                          else
+                            Text(
+                              'Pending',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                            ),
                         ],
                       ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '${item.startTime.hour}:${item.startTime.minute.toString().padLeft(2, '0')} AM',
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                        const SizedBox(height: 4),
-                        if (item.attendanceStatus != null)
-                          StatusBadge.present(small: true)
-                        else
-                          Text(
-                            'Pending',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+                    ],
+                  ),
+                );
+              },
+            ),
           const SizedBox(height: 24),
 
           // Latest Notices/Circulars
@@ -610,6 +746,7 @@ class _StudentLeaderboardTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final student = ref.watch(studentProfileProvider);
     final list = ref.watch(leaderboardProvider);
 
     return ListView.separated(
@@ -618,7 +755,7 @@ class _StudentLeaderboardTab extends ConsumerWidget {
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final entry = list[index];
-        final isMe = entry.studentName == 'Arun Kumar';
+        final isMe = student != null && entry.studentName == student.user.name;
 
         return GlassCard(
           borderColor: isMe ? AppColors.white.withAlpha(100) : null,
@@ -670,8 +807,13 @@ class _StudentProfileTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final student = ref.watch(studentProfileProvider);
+    final courses = ref.watch(coursesProvider).valueOrNull ?? [];
+    final batches = ref.watch(batchesProvider).valueOrNull ?? [];
 
     if (student == null) return const LoadingState();
+
+    final course = courses.where((c) => c.id == student.courseId).firstOrNull;
+    final batch = batches.where((b) => b.id == student.batchId).firstOrNull;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -702,9 +844,9 @@ class _StudentProfileTab extends ConsumerWidget {
                 const Divider(),
                 const SizedBox(height: 12),
                 _ProfileRow(label: 'Student ID', value: student.studentId),
-                _ProfileRow(label: 'Course', value: 'B.Tech CSE'),
-                _ProfileRow(label: 'Year & Section', value: '2024 - Sec A'),
-                _ProfileRow(label: 'Semester', value: student.semester.toString()),
+                _ProfileRow(label: 'Course', value: course?.name ?? (student.courseId.isNotEmpty ? student.courseId : 'Not Assigned')),
+                _ProfileRow(label: 'Batch / Section', value: batch?.name ?? (student.batchId.isNotEmpty ? student.batchId : 'Not Assigned')),
+                _ProfileRow(label: 'Semester', value: student.semester > 0 ? student.semester.toString() : '1'),
               ],
             ),
           ),

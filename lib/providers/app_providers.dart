@@ -279,17 +279,19 @@ final overallAttendanceProvider = Provider<double>((ref) {
 
 /// Today's class schedule — Firestore-backed.
 final todayScheduleProvider =
-    StreamProvider<List<Map<String, dynamic>>>((ref) {
+    StreamProvider<List<ClassScheduleEntry>>((ref) {
   final student = ref.watch(studentProfileProvider);
   if (student == null) return Stream.value([]);
   final firestoreService = ref.watch(firestoreServiceProvider);
-  return firestoreService.streamSchedule(student.courseId, student.batchId);
+  return firestoreService
+      .streamSchedule(student.courseId, student.batchId)
+      .map((list) => list.map((m) => ClassScheduleEntry.fromJson(m)).toList());
 });
 
 /// Current attendance streak — computed from attendance records.
 final attendanceStreakProvider = Provider<int>((ref) {
   final recordsAsync = ref.watch(studentAttendanceRecordsProvider);
-  final records = recordsAsync.value ?? [];
+  final records = recordsAsync.valueOrNull ?? [];
   if (records.isEmpty) return 0;
 
   // Sort by timestamp descending
@@ -345,7 +347,7 @@ final teacherSubjectsProvider = Provider<List<SubjectModel>>((ref) {
   final teacher = ref.watch(teacherProfileProvider);
   if (teacher == null) return [];
 
-  final allSubjects = ref.watch(subjectsProvider).value ?? [];
+  final allSubjects = ref.watch(subjectsProvider).valueOrNull ?? [];
   return allSubjects
       .where((s) => teacher.subjectIds.contains(s.id))
       .toList();
@@ -363,11 +365,11 @@ final circularsStreamProvider = StreamProvider<List<CircularModel>>((ref) {
 final circularsProvider =
     StateNotifierProvider<CircularsNotifier, List<CircularModel>>((ref) {
   final streamData = ref.watch(circularsStreamProvider);
-  return CircularsNotifier(streamData.value ?? []);
+  return CircularsNotifier(streamData.valueOrNull ?? []);
 });
 
 class CircularsNotifier extends StateNotifier<List<CircularModel>> {
-  CircularsNotifier(List<CircularModel> initial) : super(initial);
+  CircularsNotifier(super.initial);
 
   final Set<String> _readIds = {};
   final Set<String> _bookmarkedIds = {};
@@ -418,7 +420,7 @@ final eventsStreamProvider = StreamProvider<List<EventModel>>((ref) {
 
 final eventsProvider = Provider<List<EventModel>>((ref) {
   final streamData = ref.watch(eventsStreamProvider);
-  return streamData.value ?? [];
+  return streamData.valueOrNull ?? [];
 });
 
 final upcomingEventsProvider = Provider<List<EventModel>>((ref) {
@@ -442,7 +444,7 @@ final notificationsProvider =
     StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
         (ref) {
   final streamData = ref.watch(notificationsStreamProvider);
-  return NotificationsNotifier(ref, streamData.value ?? []);
+  return NotificationsNotifier(ref, streamData.valueOrNull ?? []);
 });
 
 class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
@@ -487,7 +489,7 @@ final leaderboardStreamProvider =
 
 final leaderboardProvider = Provider<List<LeaderboardEntryModel>>((ref) {
   final streamData = ref.watch(leaderboardStreamProvider);
-  return streamData.value ?? [];
+  return streamData.valueOrNull ?? [];
 });
 
 // ══════════════════════════════════════════════════════════════════════

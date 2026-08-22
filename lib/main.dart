@@ -16,8 +16,7 @@ void main() async {
     debugPrint('Firebase initialized successfully.');
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
-    // Still run the app — auth state will handle showing an error screen.
-    // But do NOT silently continue as if mock data is acceptable.
+    // AuthStatusNotifier will detect the error state and display an error screen with retry option.
   }
 
   runApp(
