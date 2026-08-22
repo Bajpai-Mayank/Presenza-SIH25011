@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/providers/app_providers.dart';
-import 'package:presenza/core/enums/user_role.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -51,17 +50,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    final success = await ref
+    final errorMessage = await ref
         .read(authStateProvider.notifier)
         .login(_emailController.text.trim(), _passwordController.text.trim());
 
     if (mounted) {
       setState(() => _isLoading = false);
-      if (!success) {
+      if (errorMessage != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid email or password')),
+          SnackBar(content: Text(errorMessage)),
         );
       }
+      // On success, the auth state listener triggers navigation automatically.
     }
   }
 
@@ -206,47 +206,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                               ],
                             ),
                           ),
-                          const SizedBox(height: 24),
 
-                          // Quick Demo Buttons
-                          Text(
-                            'Quick Demo Access',
-                            style: Theme.of(context).textTheme.labelMedium,
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _DemoChip(
-                                  label: 'Student',
-                                  icon: Icons.person_outline,
-                                  onTap: () => ref
-                                      .read(authStateProvider.notifier)
-                                      .loginAs(UserRole.student),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _DemoChip(
-                                  label: 'Teacher',
-                                  icon: Icons.school_outlined,
-                                  onTap: () => ref
-                                      .read(authStateProvider.notifier)
-                                      .loginAs(UserRole.teacher),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: _DemoChip(
-                                  label: 'Admin',
-                                  icon: Icons.admin_panel_settings_outlined,
-                                  onTap: () => ref
-                                      .read(authStateProvider.notifier)
-                                      .loginAs(UserRole.admin),
-                                ),
-                              ),
-                            ],
-                          ),
                         ],
                       ),
                     ),
@@ -254,51 +214,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DemoChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _DemoChip({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark
-                  ? AppColors.white.withAlpha(20)
-                  : AppColors.black.withAlpha(12),
-            ),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, size: 20),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
-            ],
           ),
         ),
       ),

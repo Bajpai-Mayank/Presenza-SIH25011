@@ -6,10 +6,9 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Wrap Firebase initialization in a try-catch.
-  // If the user's Firebase config is missing or has errors, it will print a warning
-  // and proceed in mock/offline mode.
+
+  // Firebase initialization is required for production.
+  // If it fails, the app cannot proceed safely.
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -17,7 +16,8 @@ void main() async {
     debugPrint('Firebase initialized successfully.');
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
-    debugPrint('Running app in mock offline mode.');
+    // Still run the app — auth state will handle showing an error screen.
+    // But do NOT silently continue as if mock data is acceptable.
   }
 
   runApp(

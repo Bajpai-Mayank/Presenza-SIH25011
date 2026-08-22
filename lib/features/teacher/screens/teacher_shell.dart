@@ -6,6 +6,8 @@ import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'dart:async';
+import 'package:presenza/data/services/firestore_service.dart';
+import 'package:presenza/data/models/course_model.dart';
 
 class TeacherShell extends ConsumerStatefulWidget {
   const TeacherShell({super.key});
@@ -198,49 +200,63 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
   int _secondsRemaining = 0;
   bool _isGenerating = false;
 
-  void _startSession() {
+  String? _selectedSubjectId;
+  String? _selectedBatchId;
+  final _durationController = TextEditingController(text: '5');
+
+  final FirestoreService _firestoreService = FirestoreService();
+
+  void _startSession(String teacherId, String courseId) {
+    if (_selectedSubjectId == null || _selectedBatchId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a subject and batch.')),
+      );
+      return;
+    }
+
+    final duration = int.tryParse(_durationController.text) ?? 5;
+
     setState(() {
       _isGenerating = true;
     });
 
     final now = DateTime.now();
-    final newSession = AttendanceSessionModel(
+    final session = AttendanceSessionModel(
       id: 'session-${now.millisecondsSinceEpoch}',
-      subjectId: 'sub-1',
-      teacherId: 'teacher-1',
-      courseId: 'course-1',
-      batchId: 'batch-1',
+      subjectId: _selectedSubjectId!,
+      teacherId: teacherId,
+      courseId: courseId,
+      batchId: _selectedBatchId!,
       date: now,
       startTime: now,
-      endTime: now.add(const Duration(minutes: 5)),
+      endTime: now.add(Duration(minutes: duration)),
       isActive: true,
-      qrToken: 'SIGNED_TOKEN_DATA_${now.millisecondsSinceEpoch}',
+      qrToken: 'session-${now.millisecondsSinceEpoch}', // QR is the session ID itself
       createdAt: now,
       locationRequired: true,
       allowedRadiusMeters: 100,
     );
 
-    ref.read(activeAttendanceSessionProvider.notifier).startSession(newSession);
+    // Save to Firestore
+    _firestoreService.createAttendanceSession(session);
+    ref.read(activeAttendanceSessionProvider.notifier).startSession(session);
 
-    _secondsRemaining = 300; // 5 minutes
+    _secondsRemaining = duration * 60;
     _sessionTimer?.cancel();
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_secondsRemaining > 0) {
         setState(() {
           _secondsRemaining--;
-          // Randomly simulate students checking in for visual demonstration
-          if (_secondsRemaining % 12 == 0) {
-            ref.read(activeAttendanceSessionProvider.notifier).incrementLiveCount();
-          }
         });
       } else {
-        _closeSession();
+        _closeSession(session.id);
       }
     });
   }
 
-  void _closeSession() {
+  void _closeSession(String sessionId) {
     _sessionTimer?.cancel();
+    _firestoreService.closeAttendanceSession(sessionId);
     ref.read(activeAttendanceSessionProvider.notifier).closeSession();
     setState(() {
       _isGenerating = false;
@@ -254,13 +270,28 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
   @override
   void dispose() {
     _sessionTimer?.cancel();
+    _durationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final activeSession = ref.watch(activeAttendanceSessionProvider);
-    final liveCount = ref.read(activeAttendanceSessionProvider.notifier).liveCount;
+    final teacher = ref.watch(teacherProfileProvider);
+    final subjects = ref.watch(teacherSubjectsProvider);
+
+    if (teacher == null) return const LoadingState();
+
+    // Default select first subject if not set
+    if (_selectedSubjectId == null && subjects.isNotEmpty) {
+      _selectedSubjectId = subjects.first.id;
+    }
+
+    // Find course of selected subject
+    final selectedSubject = subjects.firstWhere(
+      (s) => s.id == _selectedSubjectId,
+      orElse: () => subjects.isNotEmpty ? subjects.first : const SubjectModel(id: '', name: '', code: '', courseId: '', semester: 0, credits: 0, teacherId: ''),
+    );
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -277,17 +308,49 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 16),
-                  const GlassTextField(
-                    labelText: 'Subject',
-                    hintText: 'Data Structures (CS301)',
+                  
+                  // Subject Selection Dropdown
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedSubjectId,
+                    decoration: InputDecoration(
+                      labelText: 'Subject',
+                      prefixIcon: const Icon(Icons.book_outlined),
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: subjects.map((sub) {
+                      return DropdownMenuItem(
+                        value: sub.id,
+                        child: Text(sub.name),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedSubjectId = val),
                   ),
                   const SizedBox(height: 16),
-                  const GlassTextField(
-                    labelText: 'Batch',
-                    hintText: 'CSE 2024 A',
+
+                  // Batch Selection Dropdown
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedBatchId,
+                    decoration: InputDecoration(
+                      labelText: 'Batch',
+                      prefixIcon: const Icon(Icons.group_outlined),
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    items: (ref.watch(batchesProvider).value ?? []).where((b) => b.courseId == selectedSubject.courseId).map((batch) {
+                      return DropdownMenuItem(
+                        value: batch.id,
+                        child: Text(batch.name),
+                      );
+                    }).toList(),
+                    onChanged: (val) => setState(() => _selectedBatchId = val),
                   ),
                   const SizedBox(height: 16),
-                  const GlassTextField(
+
+                  GlassTextField(
+                    controller: _durationController,
                     labelText: 'Duration (Minutes)',
                     hintText: '5',
                     keyboardType: TextInputType.number,
@@ -295,7 +358,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                   const SizedBox(height: 24),
                   GlassButton(
                     label: 'Generate Attendance QR',
-                    onPressed: _startSession,
+                    onPressed: () => _startSession(teacher.user.id, selectedSubject.courseId),
                   ),
                 ],
               ),
@@ -304,8 +367,8 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
             // Active QR View
             if (activeSession != null) ...[
               Text(
-                'Computer Science • Data Structures',
-                style: Theme.of(context).textTheme.titleMedium,
+                selectedSubject.name,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
@@ -340,21 +403,77 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                 ),
               ),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: StatCard(
-                      label: 'Scanned / Enrolled',
-                      value: '$liveCount / 39',
-                      icon: Icons.people,
-                    ),
-                  ),
-                ],
+              
+              // Real-time Attendees List Stream Builder
+              StreamBuilder<List<AttendanceRecordModel>>(
+                stream: _firestoreService.streamAttendanceRecordsForSession(activeSession.id),
+                builder: (context, snapshot) {
+                  final records = snapshot.data ?? [];
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: StatCard(
+                              label: 'Scanned / Registered',
+                              value: '${records.length} Present',
+                              icon: Icons.people,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      if (records.isNotEmpty) ...[
+                        GlassCard(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Checked-In Students:',
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 12),
+                              ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: records.length,
+                                separatorBuilder: (context, index) => const Divider(height: 12),
+                                itemBuilder: (context, index) {
+                                  final rec = records[index];
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        rec.studentId, // Shows Roll No (e.g. CS2024001)
+                                        style: Theme.of(context).textTheme.bodyMedium,
+                                      ),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Verified',
+                                            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ],
+                  );
+                }
               ),
-              const SizedBox(height: 24),
               GlassButton(
                 label: 'Close Attendance Session',
-                onPressed: _closeSession,
+                onPressed: () => _closeSession(activeSession.id),
                 filled: false,
               ),
             ],

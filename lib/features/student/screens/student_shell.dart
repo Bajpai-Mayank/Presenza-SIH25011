@@ -4,7 +4,6 @@ import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/core/enums/enums.dart';
-import 'package:presenza/data/mock/seed_data.dart';
 import 'package:presenza/features/student/screens/mock_camera_screen.dart';
 
 class StudentShell extends ConsumerStatefulWidget {
@@ -119,6 +118,11 @@ class _StudentHomeTab extends ConsumerWidget {
 
     if (student == null) return const LoadingState();
 
+    final subjects = ref.watch(subjectAttendanceProvider);
+    final totalPresent = subjects.fold(0, (sum, sa) => sum + sa.present);
+    final totalAbsent = subjects.fold(0, (sum, sa) => sum + sa.absent);
+    final totalLate = subjects.fold(0, (sum, sa) => sum + sa.late);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -191,7 +195,7 @@ class _StudentHomeTab extends ConsumerWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Present: ${SeedData.demoStudentTotalPresent}d | Absent: ${SeedData.demoStudentTotalAbsent}d',
+                        'Present: ${totalPresent + totalLate}d | Absent: ${totalAbsent}d',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],

@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:presenza/core/enums/user_role.dart';
+import 'package:presenza/data/models/user_model.dart';
+import 'package:presenza/data/services/firestore_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AdminShell extends ConsumerStatefulWidget {
   const AdminShell({super.key});
@@ -242,92 +246,309 @@ class _PolicyRow extends StatelessWidget {
 // ══════════════════════════════════════════════════════════════════════
 // TAB 2: USER DIRECTORY
 // ══════════════════════════════════════════════════════════════════════
-class _AdminUsersTab extends ConsumerWidget {
+class _AdminUsersTab extends ConsumerStatefulWidget {
   const _AdminUsersTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AdminUsersTab> createState() => _AdminUsersTabState();
+}
+
+class _AdminUsersTabState extends ConsumerState<_AdminUsersTab> {
+  void _showCreateUserDialog() {
+    final nameCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final passwordCtrl = TextEditingController();
+    UserRole selectedRole = UserRole.student;
+    bool isCreating = false;
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Provision New User'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Full Name',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Required'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: emailCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Required'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: passwordCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Initial Password',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    obscureText: true,
+                    validator: (v) => v == null || v.length < 6
+                        ? 'Min 6 characters'
+                        : null,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<UserRole>(
+                    value: selectedRole,
+                    decoration: const InputDecoration(
+                      labelText: 'Role',
+                      prefixIcon: Icon(Icons.admin_panel_settings_outlined),
+                    ),
+                    items: UserRole.values.map((role) {
+                      return DropdownMenuItem(
+                        value: role,
+                        child: Text(role.displayName),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedRole = val);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isCreating ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isCreating
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isCreating = true);
+
+                      try {
+                        // Save current admin credentials to re-auth after
+                        final adminUser = FirebaseAuth.instance.currentUser;
+                        final adminEmail = adminUser?.email;
+
+                        // Create the new user's Firebase Auth account
+                        final credential = await FirebaseAuth.instance
+                            .createUserWithEmailAndPassword(
+                          email: emailCtrl.text.trim(),
+                          password: passwordCtrl.text.trim(),
+                        );
+
+                        final newUid = credential.user!.uid;
+                        final now = DateTime.now();
+
+                        // Create Firestore profile
+                        final userModel = UserModel(
+                          id: newUid,
+                          email: emailCtrl.text.trim(),
+                          name: nameCtrl.text.trim(),
+                          role: selectedRole,
+                          createdAt: now,
+                          updatedAt: now,
+                        );
+
+                        final firestoreService = FirestoreService();
+                        await firestoreService.saveUserModel(userModel);
+
+                        // Sign out the newly created user
+                        await FirebaseAuth.instance.signOut();
+
+                        // Note: The admin will need to sign back in.
+                        // This is a known limitation of client-side user creation.
+                        // For production, use Firebase Admin SDK via Cloud Functions.
+
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'User ${nameCtrl.text.trim()} created successfully. '
+                                'You have been signed out — please sign back in.',
+                              ),
+                              backgroundColor: AppColors.success,
+                              duration: const Duration(seconds: 5),
+                            ),
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        setDialogState(() => isCreating = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  e.message ?? 'Failed to create user.'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDialogState(() => isCreating = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: isCreating
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Create User'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final students = ref.watch(allStudentsProvider);
     final teachers = ref.watch(allTeachersProvider);
 
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          const TabBar(
-            tabs: [
-              Tab(text: 'Students'),
-              Tab(text: 'Teachers'),
-            ],
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                // Students List
-                ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: students.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final std = students[index];
-                    return GlassCard(
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: AppColors.white.withAlpha(20),
-                            child: Text(std.user.initials, style: const TextStyle(color: AppColors.white)),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(std.user.name, style: Theme.of(context).textTheme.titleMedium),
-                                Text(std.studentId, style: Theme.of(context).textTheme.bodySmall),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.gray400),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-
-                // Teachers List
-                ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: teachers.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final t = teachers[index];
-                    return GlassCard(
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: AppColors.white.withAlpha(20),
-                            child: Text(t.user.initials, style: const TextStyle(color: AppColors.white)),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(t.user.name, style: Theme.of(context).textTheme.titleMedium),
-                                Text(t.employeeId, style: Theme.of(context).textTheme.bodySmall),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.gray400),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showCreateUserDialog,
+        icon: const Icon(Icons.person_add),
+        label: const Text('Add User'),
+      ),
+      body: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            const TabBar(
+              tabs: [
+                Tab(text: 'Students'),
+                Tab(text: 'Teachers'),
               ],
             ),
-          ),
-        ],
+            Expanded(
+              child: TabBarView(
+                children: [
+                  // Students List
+                  students.isEmpty
+                      ? const Center(
+                          child: Text('No students found.\nProvision users with the + button.'),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(20),
+                          itemCount: students.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final std = students[index];
+                            return GlassCard(
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor:
+                                        AppColors.white.withAlpha(20),
+                                    child: Text(std.user.initials,
+                                        style: const TextStyle(
+                                            color: AppColors.white)),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(std.user.name,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium),
+                                        Text(std.studentId,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_forward_ios,
+                                      size: 14, color: AppColors.gray400),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+
+                  // Teachers List
+                  teachers.isEmpty
+                      ? const Center(
+                          child: Text('No teachers found.\nProvision users with the + button.'),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(20),
+                          itemCount: teachers.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final t = teachers[index];
+                            return GlassCard(
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor:
+                                        AppColors.white.withAlpha(20),
+                                    child: Text(t.user.initials,
+                                        style: const TextStyle(
+                                            color: AppColors.white)),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(t.user.name,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium),
+                                        Text(t.employeeId,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_forward_ios,
+                                      size: 14, color: AppColors.gray400),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
