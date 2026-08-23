@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/core/services/security_service.dart';
+import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/models/attendance_model.dart';
@@ -1009,7 +1011,7 @@ class _TeacherCircularsTab extends ConsumerWidget {
     final locationCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
     CircularCategory selectedCategory = CircularCategory.academic;
-    CircularPriority selectedPriority = CircularPriority.medium;
+    CircularPriority selectedPriority = CircularPriority.normal;
     DateTime? selectedEventDate;
     bool isSaving = false;
 
@@ -1195,7 +1197,7 @@ class _TeacherCircularsTab extends ConsumerWidget {
                             children: [
                               StatusBadge(
                                 label: c.isOfficial ? 'OFFICIAL' : 'STUDENT EVENT',
-                                color: c.isOfficial ? AppColors.info : AppColors.secondary,
+                                color: c.isOfficial ? AppColors.info : AppColors.warning,
                                 small: true,
                               ),
                               const SizedBox(width: 6),

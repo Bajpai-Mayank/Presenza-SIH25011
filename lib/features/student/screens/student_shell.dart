@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/core/enums/enums.dart';
+import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/data/models/attendance_model.dart';
+import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/features/student/screens/qr_scanner_screen.dart';
 
 class StudentShell extends ConsumerStatefulWidget {
@@ -1044,7 +1047,7 @@ class _StudentActivitiesTabState extends ConsumerState<_StudentActivitiesTab> {
     final locationCtrl = TextEditingController();
     final organizerCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    CircularCategory selectedCategory = CircularCategory.event;
+    CircularCategory selectedCategory = CircularCategory.events;
     bool isSaving = false;
 
     showDialog(
@@ -1075,8 +1078,8 @@ class _StudentActivitiesTabState extends ConsumerState<_StudentActivitiesTab> {
                       prefixIcon: Icon(Icons.category_outlined),
                     ),
                     items: const [
-                      DropdownMenuItem(value: CircularCategory.event, child: Text('Hackathon / Competition')),
-                      DropdownMenuItem(value: CircularCategory.holiday, child: Text('Club Meetup / Workshop')),
+                      DropdownMenuItem(value: CircularCategory.events, child: Text('Hackathon / Competition')),
+                      DropdownMenuItem(value: CircularCategory.department, child: Text('Club Meetup / Workshop')),
                       DropdownMenuItem(value: CircularCategory.general, child: Text('Study Group / Project')),
                     ],
                     onChanged: (val) {
@@ -1139,7 +1142,7 @@ class _StudentActivitiesTabState extends ConsumerState<_StudentActivitiesTab> {
                         title: titleCtrl.text.trim(),
                         content: contentCtrl.text.trim(),
                         category: selectedCategory,
-                        priority: CircularPriority.low,
+                        priority: CircularPriority.normal,
                         authorId: student.user.id,
                         authorName: student.user.name,
                         authorRole: 'student',
@@ -1181,7 +1184,7 @@ class _StudentActivitiesTabState extends ConsumerState<_StudentActivitiesTab> {
     final list = ref.watch(circularsProvider);
     final filtered = list.where((c) {
       if (_filter == 'official') return c.isOfficial;
-      if (_filter == 'events') return !c.isOfficial || c.category == CircularCategory.event;
+      if (_filter == 'events') return !c.isOfficial || c.category == CircularCategory.events;
       if (_filter == 'clubs') return !c.isOfficial;
       return true;
     }).toList();
@@ -1263,7 +1266,7 @@ class _StudentActivitiesTabState extends ConsumerState<_StudentActivitiesTab> {
                                 children: [
                                   StatusBadge(
                                     label: c.isOfficial ? 'OFFICIAL ACADEMIC' : 'STUDENT ACTIVITY',
-                                    color: c.isOfficial ? AppColors.info : AppColors.secondary,
+                                    color: c.isOfficial ? AppColors.info : AppColors.warning,
                                     small: true,
                                   ),
                                   if (c.isUrgent) ...[
@@ -1349,7 +1352,6 @@ class _StudentInsightsTabState extends ConsumerState<_StudentInsightsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final student = ref.watch(studentProfileProvider);
     final overallAttendance = ref.watch(overallAttendanceProvider);
     final subjects = ref.watch(subjectAttendanceProvider);
     final streak = ref.watch(attendanceStreakProvider);
@@ -1371,7 +1373,6 @@ class _StudentInsightsTabState extends ConsumerState<_StudentInsightsTab> {
     final has75Benchmark = overallAttendance >= 75.0 && totalClasses > 0;
     final hasPerfectSubject = subjects.any((s) => s.percentage == 100.0 && s.totalClasses >= 3);
     final hasStreakBadge = streak >= 3;
-    final hasFullCurriculum = subjects.length >= 3;
     final hasZeroAbsence = totalAbsent == 0 && totalClasses > 0;
 
     return SingleChildScrollView(
