@@ -12,11 +12,28 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? userDoc().role
+        : (request.auth.token.email == 'admin@presenza.edu' ? 'admin' : 'student');
+    }
+
     function isUserAdmin() {
       return signedIn() && (
         request.auth.token.email == 'admin@presenza.edu' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        getUserRole() == 'admin'
+      );
+    }
+
+    function isTeacherOrAdmin() {
+      return signedIn() && (
+        isUserAdmin() ||
+        getUserRole() == 'teacher' ||
+        request.auth.token.email.matches('.*@faculty\\.presenza\\.edu')
       );
     }
 
@@ -30,7 +47,7 @@ service cloud.firestore {
     // Students Collection
     match /students/{uid} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && (request.auth.uid == uid || isUserAdmin());
+      allow create, update: if signedIn() && (request.auth.uid == uid || isTeacherOrAdmin());
       allow delete: if isUserAdmin();
     }
 
@@ -44,56 +61,77 @@ service cloud.firestore {
     // Courses, Batches, Subjects (Public read for registration dropdowns)
     match /courses/{id} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isTeacherOrAdmin();
     }
 
     match /batches/{id} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isTeacherOrAdmin();
     }
 
     match /subjects/{id} {
       allow read: if true;
-      allow write: if signedIn();
+      allow write: if isTeacherOrAdmin();
     }
 
-    // Attendance Sessions & Records
+    // Attendance Sessions (Created and controlled by teachers/admins)
     match /sessions/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if isTeacherOrAdmin();
     }
 
+    // Attendance Records (Students can submit their own check-ins, teachers can manage)
     match /attendance_records/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        request.resource.data.studentId == request.auth.uid ||
+        isTeacherOrAdmin()
+      );
+      allow update, delete: if isTeacherOrAdmin();
     }
 
-    // Circulars, Events & Schedules
+    // Circulars & Activities
+    // (Teachers can create official notices; students can create unofficial student activities)
     match /circulars/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        isTeacherOrAdmin() ||
+        (request.resource.data.isOfficial == false && request.resource.data.authorId == request.auth.uid)
+      );
+      allow update, delete: if isTeacherOrAdmin() || (signedIn() && resource.data.authorId == request.auth.uid);
     }
 
     match /events/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if isTeacherOrAdmin();
     }
 
     match /schedules/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if isTeacherOrAdmin();
     }
 
     // Policies, Leaderboard, Notifications & Audit Logs
     match /policies/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if isUserAdmin();
     }
 
     match /leaderboard/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn();
+      allow write: if isTeacherOrAdmin();
     }
 
     match /notifications/{id} {
-      allow read, write: if signedIn();
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isUserAdmin());
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (resource.data.userId == request.auth.uid || isUserAdmin());
     }
 
     match /audit_logs/{id} {
-      allow read, write: if signedIn();
+      allow read: if isUserAdmin();
+      allow create: if signedIn();
+      allow update, delete: if false; // Append-only audit trail
     }
   }
 }

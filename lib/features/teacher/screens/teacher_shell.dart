@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/core/enums/enums.dart';
+import 'package:presenza/core/services/security_service.dart';
+import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/models/attendance_model.dart';
@@ -104,6 +108,143 @@ class _TeacherShellState extends ConsumerState<TeacherShell> {
 class _TeacherDashboardTab extends ConsumerWidget {
   const _TeacherDashboardTab();
 
+  void _showAddSubjectDialog(BuildContext context, WidgetRef ref, String teacherUid) {
+    final nameCtrl = TextEditingController();
+    final codeCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final courses = ref.read(coursesProvider).valueOrNull ?? [];
+    String selectedCourseId = courses.isNotEmpty ? courses.first.id : 'course-btech-cse';
+    int selectedSemester = 4;
+    int selectedCredits = 4;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Academic Subject'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Subject Name',
+                      hintText: 'e.g. Cloud Computing & DevOps',
+                      prefixIcon: Icon(Icons.book_outlined),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: codeCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Subject Code',
+                      hintText: 'e.g. CS502',
+                      prefixIcon: Icon(Icons.pin_outlined),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  if (courses.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCourseId,
+                      decoration: const InputDecoration(
+                        labelText: 'Course / Degree',
+                        prefixIcon: Icon(Icons.school_outlined),
+                      ),
+                      items: courses.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedCourseId = val);
+                      },
+                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: selectedSemester,
+                          decoration: const InputDecoration(labelText: 'Semester'),
+                          items: List.generate(8, (i) => i + 1)
+                              .map((s) => DropdownMenuItem(value: s, child: Text('Sem $s')))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) setDialogState(() => selectedSemester = val);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: selectedCredits,
+                          decoration: const InputDecoration(labelText: 'Credits'),
+                          items: List.generate(6, (i) => i + 1)
+                              .map((c) => DropdownMenuItem(value: c, child: Text('$c Credits')))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) setDialogState(() => selectedCredits = val);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isSaving = true);
+
+                      final uuid = const Uuid().v4().substring(0, 8);
+                      final newSubject = SubjectModel(
+                        id: 'sub-$uuid',
+                        name: nameCtrl.text.trim(),
+                        code: codeCtrl.text.trim().toUpperCase(),
+                        courseId: selectedCourseId,
+                        semester: selectedSemester,
+                        credits: selectedCredits,
+                        teacherId: teacherUid,
+                      );
+
+                      final firestoreService = FirestoreService();
+                      await firestoreService.addTeacherSubject(
+                        teacherUid: teacherUid,
+                        subject: newSubject,
+                      );
+                      await ref.read(teacherProfileProvider.notifier).refresh();
+
+                      if (context.mounted) {
+                        Navigator.pop(dialogCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Subject ${newSubject.name} (${newSubject.code}) added successfully.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Add Subject'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final teacher = ref.watch(teacherProfileProvider);
@@ -139,55 +280,94 @@ class _TeacherDashboardTab extends ConsumerWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: StatCard(
-                  label: 'Active Subjects',
-                  value: subjects.isNotEmpty ? subjects.length.toString() : '0',
-                  icon: Icons.calendar_today,
+                  label: 'Department',
+                  value: teacher.departmentId.replaceAll('dept-', '').toUpperCase(),
+                  icon: Icons.account_balance_outlined,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 24),
 
-          // Subjects List
-          Text(
-            'Your Subjects',
-            style: Theme.of(context).textTheme.titleLarge,
+          // Subjects List Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Your Curriculum Subjects',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => _showAddSubjectDialog(context, ref, teacher.user.id),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Subject'),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           if (subjects.isEmpty)
             GlassCard(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'No subjects assigned yet.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray400),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  const Icon(Icons.book_outlined, size: 40, color: AppColors.gray400),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No curriculum subjects assigned yet.',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Click "+ Add Subject" above to create and manage subjects for your department.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                  ),
+                ],
               ),
             )
           else
-            ...subjects.map(
-              (sub) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: GlassCard(
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: subjects.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final sub = subjects[index];
+                return GlassCard(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            sub.name,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          Text(
-                            '${sub.code} • ${sub.credits} Credits',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sub.name,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${sub.code} • ${sub.credits} Credits • Semester ${sub.semester}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                            ),
+                          ],
+                        ),
                       ),
-                      const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gray400),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withAlpha(15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Sem ${sub.semester}',
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              ),
+                );
+              },
             ),
         ],
       ),
@@ -212,15 +392,103 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
 
   String? _selectedSubjectId;
   String? _selectedBatchId;
+  final _roomController = TextEditingController(text: 'Room 401, CS Block');
   final _durationController = TextEditingController(text: '5');
+  bool _requireLocation = false;
   static const _uuid = Uuid();
 
   final FirestoreService _firestoreService = FirestoreService();
 
-  void _startSession(String teacherId, String courseId) {
+  void _showAddSubjectDialog(String teacherUid) {
+    final nameCtrl = TextEditingController();
+    final codeCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final courses = ref.read(coursesProvider).valueOrNull ?? [];
+    String selectedCourseId = courses.isNotEmpty ? courses.first.id : 'course-btech-cse';
+    int selectedSemester = 4;
+    int selectedCredits = 4;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Subject'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(labelText: 'Subject Name', prefixIcon: Icon(Icons.book)),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: codeCtrl,
+                    decoration: const InputDecoration(labelText: 'Subject Code', prefixIcon: Icon(Icons.pin)),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isSaving = true);
+
+                      final uuid = const Uuid().v4().substring(0, 8);
+                      final newSubject = SubjectModel(
+                        id: 'sub-$uuid',
+                        name: nameCtrl.text.trim(),
+                        code: codeCtrl.text.trim().toUpperCase(),
+                        courseId: selectedCourseId,
+                        semester: selectedSemester,
+                        credits: selectedCredits,
+                        teacherId: teacherUid,
+                      );
+
+                      await _firestoreService.addTeacherSubject(
+                        teacherUid: teacherUid,
+                        subject: newSubject,
+                      );
+                      await ref.read(teacherProfileProvider.notifier).refresh();
+
+                      if (mounted) {
+                        setState(() => _selectedSubjectId = newSubject.id);
+                        Navigator.pop(dialogCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Subject ${newSubject.name} created.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Create'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _startSession(String teacherId, String teacherName, String courseId, SubjectModel subject) {
     if (_selectedSubjectId == null || _selectedBatchId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a subject and batch.')),
+        const SnackBar(content: Text('Please select a subject and batch/section.')),
       );
       return;
     }
@@ -235,17 +503,21 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
     final sessionId = _uuid.v4();
     final session = AttendanceSessionModel(
       id: sessionId,
-      subjectId: _selectedSubjectId!,
+      subjectId: subject.id,
+      subjectName: subject.name,
+      subjectCode: subject.code,
       teacherId: teacherId,
+      teacherName: teacherName,
       courseId: courseId,
       batchId: _selectedBatchId!,
+      room: _roomController.text.trim(),
       date: now,
       startTime: now,
       endTime: now.add(Duration(minutes: duration)),
       isActive: true,
       qrToken: sessionId,
       createdAt: now,
-      locationRequired: false,
+      locationRequired: _requireLocation,
       campusLat: 28.5355,
       campusLng: 77.3910,
       allowedRadiusMeters: 200,
@@ -254,6 +526,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
     // Save to Firestore
     _firestoreService.createAttendanceSession(session);
     ref.read(activeAttendanceSessionProvider.notifier).startSession(session);
+    SecurityService.enableScreenshotProtection();
 
     _secondsRemaining = duration * 60;
     _sessionTimer?.cancel();
@@ -272,19 +545,22 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
     _sessionTimer?.cancel();
     _firestoreService.closeAttendanceSession(sessionId);
     ref.read(activeAttendanceSessionProvider.notifier).closeSession();
+    SecurityService.disableScreenshotProtection();
     setState(() {
       _isGenerating = false;
       _secondsRemaining = 0;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Attendance session closed.')),
+      const SnackBar(content: Text('Attendance session closed successfully.')),
     );
   }
 
   @override
   void dispose() {
+    SecurityService.disableScreenshotProtection();
     _sessionTimer?.cancel();
     _durationController.dispose();
+    _roomController.dispose();
     super.dispose();
   }
 
@@ -302,15 +578,20 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
       _selectedSubjectId = subjects.first.id;
     }
 
-    // Find course of selected subject
     final selectedSubject = subjects.firstWhere(
       (s) => s.id == _selectedSubjectId,
-      orElse: () => subjects.isNotEmpty ? subjects.first : const SubjectModel(id: '', name: '', code: '', courseId: '', semester: 0, credits: 0, teacherId: ''),
+      orElse: () => subjects.isNotEmpty
+          ? subjects.first
+          : const SubjectModel(id: '', name: '', code: '', courseId: '', semester: 0, credits: 0, teacherId: ''),
     );
 
     final batches = (ref.watch(batchesProvider).valueOrNull ?? [])
         .where((b) => b.courseId == selectedSubject.courseId || selectedSubject.courseId.isEmpty)
         .toList();
+
+    if (_selectedBatchId == null && batches.isNotEmpty) {
+      _selectedBatchId = batches.first.id;
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -318,79 +599,164 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!_isGenerating) ...[
-            // Setup session view
+            // Setup session card
             GlassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Setup Attendance Session',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Create Attendance Session',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _showAddSubjectDialog(teacher.user.id),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('New Subject'),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Subject Selection Dropdown
-                  DropdownButtonFormField<String>(
-                    initialValue: subjects.any((s) => s.id == _selectedSubjectId) ? _selectedSubjectId : (subjects.isNotEmpty ? subjects.first.id : null),
-                    decoration: InputDecoration(
-                      labelText: 'Subject',
-                      prefixIcon: const Icon(Icons.book_outlined),
-                      filled: true,
-                      fillColor: Colors.transparent,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+
+                  // Subject Dropdown
+                  if (subjects.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      initialValue: subjects.any((s) => s.id == _selectedSubjectId)
+                          ? _selectedSubjectId
+                          : subjects.first.id,
+                      decoration: InputDecoration(
+                        labelText: 'Academic Subject',
+                        prefixIcon: const Icon(Icons.book_outlined),
+                        filled: true,
+                        fillColor: Colors.transparent,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      items: [
+                        ...subjects.map((sub) {
+                          return DropdownMenuItem(
+                            value: sub.id,
+                            child: Text('${sub.name} (${sub.code})'),
+                          );
+                        }),
+                        const DropdownMenuItem(
+                          value: '__manual_entry__',
+                          child: Row(
+                            children: [
+                              Icon(Icons.add_circle_outline, size: 16, color: AppColors.info),
+                              SizedBox(width: 8),
+                              Text(
+                                'Other / Enter Subject Manually...',
+                                style: TextStyle(color: AppColors.info, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val == '__manual_entry__') {
+                          _showAddSubjectDialog(teacher.user.id);
+                        } else if (val != null) {
+                          setState(() => _selectedSubjectId = val);
+                        }
+                      },
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.error.withAlpha(100)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: AppColors.warning),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'No subjects available. Click "New Subject" to create one.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    items: subjects.map((sub) {
-                      return DropdownMenuItem(
-                        value: sub.id,
-                        child: Text(sub.name),
-                      );
-                    }).toList(),
-                    onChanged: (val) => setState(() => _selectedSubjectId = val),
-                  ),
                   const SizedBox(height: 16),
 
                   // Batch Selection Dropdown
-                  DropdownButtonFormField<String>(
-                    initialValue: batches.any((b) => b.id == _selectedBatchId) ? _selectedBatchId : (batches.isNotEmpty ? batches.first.id : null),
-                    decoration: InputDecoration(
-                      labelText: 'Batch',
-                      prefixIcon: const Icon(Icons.group_outlined),
-                      filled: true,
-                      fillColor: Colors.transparent,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  if (batches.isNotEmpty)
+                    DropdownButtonFormField<String>(
+                      initialValue: batches.any((b) => b.id == _selectedBatchId)
+                          ? _selectedBatchId
+                          : batches.first.id,
+                      decoration: InputDecoration(
+                        labelText: 'Class / Batch / Section',
+                        prefixIcon: const Icon(Icons.group_outlined),
+                        filled: true,
+                        fillColor: Colors.transparent,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      items: batches.map((batch) {
+                        return DropdownMenuItem(
+                          value: batch.id,
+                          child: Text(batch.name),
+                        );
+                      }).toList(),
+                      onChanged: (val) => setState(() => _selectedBatchId = val),
                     ),
-                    items: batches.map((batch) {
-                      return DropdownMenuItem(
-                        value: batch.id,
-                        child: Text(batch.name),
-                      );
-                    }).toList(),
-                    onChanged: (val) => setState(() => _selectedBatchId = val),
+                  const SizedBox(height: 16),
+
+                  // Classroom Location
+                  GlassTextField(
+                    controller: _roomController,
+                    labelText: 'Classroom / Location',
+                    prefixIcon: Icons.room_outlined,
+                    hintText: 'e.g. Room 401, CS Block',
                   ),
                   const SizedBox(height: 16),
 
+                  // Duration
                   GlassTextField(
                     controller: _durationController,
-                    labelText: 'Duration (Minutes)',
+                    labelText: 'Session Expiry Window (Minutes)',
+                    prefixIcon: Icons.timer_outlined,
                     hintText: '5',
                     keyboardType: TextInputType.number,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+
+                  // Geofence Toggle
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Require Classroom GPS Location'),
+                    subtitle: const Text('Verifies student is within campus radius'),
+                    value: _requireLocation,
+                    onChanged: (val) => setState(() => _requireLocation = val),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Generate QR Button
                   GlassButton(
-                    label: 'Generate Attendance QR',
-                    onPressed: () => _startSession(
-                      teacher.user.id,
-                      selectedSubject.courseId.isNotEmpty ? selectedSubject.courseId : 'general',
-                    ),
+                    label: 'Generate & Launch QR Session',
+                    icon: Icons.qr_code_scanner,
+                    onPressed: subjects.isEmpty
+                        ? null
+                        : () => _startSession(
+                              teacher.user.id,
+                              teacher.user.name,
+                              selectedSubject.courseId.isNotEmpty ? selectedSubject.courseId : 'general',
+                              selectedSubject,
+                            ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
-            // Recent Sessions Section
+            // Session History Section
             Text(
-              'Recent Sessions',
+              'Past Session History',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 12),
@@ -400,9 +766,9 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                 final sessions = snapshot.data ?? [];
                 if (sessions.isEmpty) {
                   return GlassCard(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     child: Text(
-                      'No past sessions recorded yet.',
+                      'No past sessions recorded yet. Active sessions will log automatically.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray400),
                     ),
                   );
@@ -414,24 +780,25 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                   separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final s = sessions[index];
-                    final sub = subjects.where((sub) => sub.id == s.subjectId).firstOrNull;
                     return GlassCard(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                sub?.name ?? s.subjectId,
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                '${s.date.day}/${s.date.month}/${s.date.year} • ${s.startTime.hour}:${s.startTime.minute.toString().padLeft(2, '0')}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  s.subjectName ?? s.subjectId,
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '${DateFormat('dd MMM yyyy • hh:mm a').format(s.date)}${s.room != null && s.room!.isNotEmpty ? ' • ${s.room}' : ''}',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                                ),
+                              ],
+                            ),
                           ),
                           StatusBadge(
                             label: s.isActive ? 'Active' : 'Closed',
@@ -446,76 +813,203 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
               },
             ),
           ] else ...[
-            // Active QR View
+            // Live Session View (Section 3: Real-Time Live Attendance Monitoring)
             if (activeSession != null) ...[
               Text(
-                selectedSubject.name.isNotEmpty ? selectedSubject.name : 'Attendance Session',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                activeSession.subjectName ?? 'Live Attendance Session',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
-                'Live Session Active — Session Code: ${activeSession.id.substring(0, 8)}...',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success),
+                'Batch: ${activeSession.batchId} • ${activeSession.room ?? 'Classroom'} • Date: ${DateFormat('dd MMM yyyy').format(activeSession.date)}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
               ),
-              const SizedBox(height: 24),
-              GlassCard(
-                child: Column(
-                  children: [
-                    QrImageView(
-                      data: activeSession.qrToken ?? '',
-                      version: QrVersions.auto,
-                      size: 200.0,
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: Colors.white,
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Time Remaining: ${_secondsRemaining ~/ 60}:${(_secondsRemaining % 60).toString().padLeft(2, '0')}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Real-time Attendees List Stream Builder
+              const SizedBox(height: 16),
+
+              // Live Attendance Stats from Firestore Stream
               StreamBuilder<List<AttendanceRecordModel>>(
                 stream: _firestoreService.streamAttendanceRecordsForSession(activeSession.id),
                 builder: (context, snapshot) {
                   final records = snapshot.data ?? [];
+                  final batchStudents = allStudents.where((s) => s.batchId == activeSession.batchId).toList();
+                  final totalEnrolled = batchStudents.isNotEmpty ? batchStudents.length : (records.isNotEmpty ? records.length : 1);
+                  final presentCount = records.length;
+                  final absentCount = (totalEnrolled - presentCount).clamp(0, totalEnrolled);
+                  final attendancePercentage = totalEnrolled > 0 ? (presentCount / totalEnrolled) * 100 : 0.0;
+
                   return Column(
                     children: [
+                      // Detailed Session Metadata Card
+                      GlassCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Class: ${activeSession.batchId} • ${activeSession.room ?? 'Room 401'}',
+                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Faculty: ${activeSession.teacherName ?? teacher.user.name} • ${DateFormat('hh:mm a').format(activeSession.startTime)}',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                StatusBadge(
+                                  label: activeSession.locationRequired ? 'QR + GPS (200m)' : 'QR Code Only',
+                                  color: activeSession.locationRequired ? AppColors.success : AppColors.info,
+                                  small: true,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.white.withAlpha(8),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Enrolled: $totalEnrolled', style: Theme.of(context).textTheme.labelSmall),
+                                  Text('Present: $presentCount', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
+                                  Text('Absent: $absentCount', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.warning)),
+                                  Text('Rate: ${attendancePercentage.toStringAsFixed(1)}%', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.info, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // 3-Stat Live Monitoring Grid
                       Row(
                         children: [
                           Expanded(
                             child: StatCard(
-                              label: 'Scanned / Registered',
-                              value: '${records.length} Present',
-                              icon: Icons.people,
+                              label: 'Present',
+                              value: '$presentCount / $totalEnrolled',
+                              icon: Icons.check_circle,
+                              iconColor: AppColors.success,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: StatCard(
+                              label: 'Absent',
+                              value: '$absentCount',
+                              icon: Icons.cancel_outlined,
+                              iconColor: AppColors.warning,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: StatCard(
+                              label: 'Rate',
+                              value: '${attendancePercentage.toStringAsFixed(0)}%',
+                              icon: Icons.trending_up,
+                              iconColor: attendancePercentage >= 75.0 ? AppColors.success : AppColors.info,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
-                      if (records.isNotEmpty) ...[
-                        GlassCard(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Checked-In Students:',
-                                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      const SizedBox(height: 20),
+
+                      // QR Code Display Card
+                      GlassCard(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              const SizedBox(height: 12),
+                              child: QrImageView(
+                                data: activeSession.qrToken ?? '',
+                                version: QrVersions.auto,
+                                size: 210.0,
+                                eyeStyle: const QrEyeStyle(
+                                  eyeShape: QrEyeShape.square,
+                                  color: Colors.black,
+                                ),
+                                dataModuleStyle: const QrDataModuleStyle(
+                                  dataModuleShape: QrDataModuleShape.square,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.timer_outlined, size: 20, color: AppColors.warning),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Session Expires in: ${_secondsRemaining ~/ 60}:${(_secondsRemaining % 60).toString().padLeft(2, '0')}',
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: _secondsRemaining < 60 ? AppColors.error : null,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Students scan this QR code using Presenza to verify attendance.',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Real-time Verified Attendees Roster
+                      GlassCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Real-Time Verified Attendees (${records.length})',
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                if (records.isNotEmpty)
+                                  const StatusBadge(
+                                    label: 'LIVE UPDATING',
+                                    color: AppColors.success,
+                                    small: true,
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (records.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: Text(
+                                    'Waiting for student check-ins...',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                                  ),
+                                ),
+                              )
+                            else
                               ListView.separated(
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
@@ -524,19 +1018,31 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                                 itemBuilder: (context, index) {
                                   final rec = records[index];
                                   final std = allStudents.where((s) => s.user.id == rec.studentId || s.studentId == rec.studentId).firstOrNull;
+
                                   return Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(
-                                        std != null ? '${std.user.name} (${std.studentId})' : rec.studentId,
-                                        style: Theme.of(context).textTheme.bodyMedium,
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              std != null ? std.user.name : 'Student (${rec.studentId.substring(0, 6)}...)',
+                                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                                            ),
+                                            Text(
+                                              '${std?.studentId ?? rec.studentId} • ${DateFormat('hh:mm:ss a').format(rec.timestamp)}',
+                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                       Row(
                                         children: [
                                           const Icon(Icons.check_circle, color: AppColors.success, size: 16),
                                           const SizedBox(width: 4),
                                           Text(
-                                            'Verified',
+                                            rec.locationVerified ? 'QR + GPS' : 'QR Verified',
                                             style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success),
                                           ),
                                         ],
@@ -545,17 +1051,18 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                                   );
                                 },
                               ),
-                            ],
-                          ),
+                          ],
                         ),
-                        const SizedBox(height: 24),
-                      ],
+                      ),
+                      const SizedBox(height: 20),
                     ],
                   );
-                }
+                },
               ),
+
               GlassButton(
                 label: 'Close Attendance Session',
+                icon: Icons.stop_circle_outlined,
                 onPressed: () => _closeSession(activeSession.id),
                 filled: false,
               ),
@@ -568,53 +1075,255 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// TAB 2: CIRCULARS
+// TAB 2: ACADEMIC ACTIVITIES & CIRCULARS
 // ══════════════════════════════════════════════════════════════════════
 class _TeacherCircularsTab extends ConsumerWidget {
   const _TeacherCircularsTab();
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final list = ref.watch(circularsProvider);
+  void _showCreateAnnouncementDialog(BuildContext context, WidgetRef ref, String teacherUid, String teacherName) {
+    final titleCtrl = TextEditingController();
+    final contentCtrl = TextEditingController();
+    final locationCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    CircularCategory selectedCategory = CircularCategory.academic;
+    CircularPriority selectedPriority = CircularPriority.normal;
+    DateTime? selectedEventDate;
+    bool isSaving = false;
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(20),
-      itemCount: list.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final c = list[index];
-        return GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Publish Academic Notice / Event'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  StatusBadge(
-                    label: c.category.displayName,
-                    color: c.isUrgent ? AppColors.error : AppColors.info,
-                    small: true,
+                  TextFormField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Notice / Event Title',
+                      hintText: 'e.g. Mid-Term Assessment Schedule',
+                      prefixIcon: Icon(Icons.title),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
-                  Text(
-                    '${c.publishDate.day}/${c.publishDate.month}',
-                    style: Theme.of(context).textTheme.labelSmall,
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<CircularCategory>(
+                    initialValue: selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      prefixIcon: Icon(Icons.category_outlined),
+                    ),
+                    items: CircularCategory.values
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c.displayName)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedCategory = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<CircularPriority>(
+                    initialValue: selectedPriority,
+                    decoration: const InputDecoration(
+                      labelText: 'Priority',
+                      prefixIcon: Icon(Icons.flag_outlined),
+                    ),
+                    items: CircularPriority.values
+                        .map((p) => DropdownMenuItem(value: p, child: Text(p.displayName)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedPriority = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: locationCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Event Location / Room (Optional)',
+                      hintText: 'e.g. Seminar Hall 1 / Online',
+                      prefixIcon: Icon(Icons.pin_drop_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: contentCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Notice Content / Description',
+                      hintText: 'Provide detailed instructions or notice body...',
+                      prefixIcon: Icon(Icons.description_outlined),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isSaving = true);
+
+                      final now = DateTime.now();
+                      final uuid = const Uuid().v4().substring(0, 8);
+                      final circular = CircularModel(
+                        id: 'circ-$uuid',
+                        title: titleCtrl.text.trim(),
+                        content: contentCtrl.text.trim(),
+                        category: selectedCategory,
+                        priority: selectedPriority,
+                        authorId: teacherUid,
+                        authorName: teacherName,
+                        authorRole: 'teacher',
+                        isOfficial: true,
+                        location: locationCtrl.text.trim().isNotEmpty ? locationCtrl.text.trim() : null,
+                        eventDate: selectedEventDate ?? now,
+                        publishDate: now,
+                        createdAt: now,
+                        updatedAt: now,
+                      );
+
+                      final firestoreService = FirestoreService();
+                      await firestoreService.saveCircular(circular);
+
+                      if (context.mounted) {
+                        Navigator.pop(dialogCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Notice published to all enrolled students.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Publish Notice'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list = ref.watch(circularsProvider);
+    final teacher = ref.watch(teacherProfileProvider);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
               Text(
-                c.title,
-                style: Theme.of(context).textTheme.titleMedium,
+                'Department Notices (${list.length})',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 4),
-              Text(
-                c.content,
-                style: Theme.of(context).textTheme.bodySmall,
+              FilledButton.tonalIcon(
+                onPressed: teacher != null
+                    ? () => _showCreateAnnouncementDialog(context, ref, teacher.user.id, teacher.user.name)
+                    : null,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Post Notice'),
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 16),
+          if (list.isEmpty)
+            GlassCard(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Text(
+                  'No circulars or academic notices published yet.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray400),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: list.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 14),
+              itemBuilder: (context, index) {
+                final c = list[index];
+                return GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              StatusBadge(
+                                label: c.isOfficial ? 'OFFICIAL' : 'STUDENT EVENT',
+                                color: c.isOfficial ? AppColors.info : AppColors.warning,
+                                small: true,
+                              ),
+                              const SizedBox(width: 6),
+                              StatusBadge(
+                                label: c.category.displayName,
+                                color: c.isUrgent ? AppColors.error : AppColors.gray400,
+                                small: true,
+                              ),
+                            ],
+                          ),
+                          Text(
+                            DateFormat('dd MMM yyyy').format(c.publishDate),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        c.title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        c.content,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (c.location != null && c.location!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.pin_drop_outlined, size: 14, color: AppColors.gray400),
+                            const SizedBox(width: 4),
+                            Text(
+                              c.location!,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        'Posted by: ${c.authorName}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray500),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
     );
   }
 }

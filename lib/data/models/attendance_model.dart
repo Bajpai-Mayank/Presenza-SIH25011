@@ -5,9 +5,13 @@ import 'package:presenza/core/enums/enums.dart';
 class AttendanceSessionModel {
   final String id;
   final String subjectId;
+  final String? subjectName;
+  final String? subjectCode;
   final String teacherId;
+  final String? teacherName;
   final String courseId;
   final String batchId;
+  final String? room;
   final DateTime date;
   final DateTime startTime;
   final DateTime endTime;
@@ -23,9 +27,13 @@ class AttendanceSessionModel {
   const AttendanceSessionModel({
     required this.id,
     required this.subjectId,
+    this.subjectName,
+    this.subjectCode,
     required this.teacherId,
+    this.teacherName,
     required this.courseId,
     required this.batchId,
+    this.room,
     required this.date,
     required this.startTime,
     required this.endTime,
@@ -43,9 +51,13 @@ class AttendanceSessionModel {
       AttendanceSessionModel(
         id: json['id'] as String,
         subjectId: json['subjectId'] as String,
+        subjectName: json['subjectName'] as String?,
+        subjectCode: json['subjectCode'] as String?,
         teacherId: json['teacherId'] as String,
+        teacherName: json['teacherName'] as String?,
         courseId: json['courseId'] as String,
         batchId: json['batchId'] as String,
+        room: json['room'] as String?,
         date: DateTime.parse(json['date'] as String),
         startTime: DateTime.parse(json['startTime'] as String),
         endTime: DateTime.parse(json['endTime'] as String),
@@ -63,9 +75,13 @@ class AttendanceSessionModel {
   Map<String, dynamic> toJson() => {
         'id': id,
         'subjectId': subjectId,
+        'subjectName': subjectName,
+        'subjectCode': subjectCode,
         'teacherId': teacherId,
+        'teacherName': teacherName,
         'courseId': courseId,
         'batchId': batchId,
+        'room': room,
         'date': date.toIso8601String(),
         'startTime': startTime.toIso8601String(),
         'endTime': endTime.toIso8601String(),
@@ -83,13 +99,21 @@ class AttendanceSessionModel {
     String? id,
     String? qrToken,
     bool? isActive,
+    String? room,
+    String? subjectName,
+    String? subjectCode,
+    String? teacherName,
   }) =>
       AttendanceSessionModel(
         id: id ?? this.id,
         subjectId: subjectId,
+        subjectName: subjectName ?? this.subjectName,
+        subjectCode: subjectCode ?? this.subjectCode,
         teacherId: teacherId,
+        teacherName: teacherName ?? this.teacherName,
         courseId: courseId,
         batchId: batchId,
+        room: room ?? this.room,
         date: date,
         startTime: startTime,
         endTime: endTime,
@@ -112,8 +136,11 @@ class AttendanceRecordModel {
   final String studentId;
   final String attendanceSessionId;
   final String subjectId;
+  final String? subjectName;
   final String courseId;
   final String teacherId;
+  final String? teacherName;
+  final String? room;
   final AttendanceStatus status;
   final VerificationMethod verificationMethod;
   final DateTime timestamp;
@@ -129,8 +156,11 @@ class AttendanceRecordModel {
     required this.studentId,
     required this.attendanceSessionId,
     required this.subjectId,
+    this.subjectName,
     required this.courseId,
     required this.teacherId,
+    this.teacherName,
+    this.room,
     required this.status,
     required this.verificationMethod,
     required this.timestamp,
@@ -148,8 +178,11 @@ class AttendanceRecordModel {
         studentId: json['studentId'] as String,
         attendanceSessionId: json['attendanceSessionId'] as String,
         subjectId: json['subjectId'] as String,
+        subjectName: json['subjectName'] as String?,
         courseId: json['courseId'] as String,
         teacherId: json['teacherId'] as String,
+        teacherName: json['teacherName'] as String?,
+        room: json['room'] as String?,
         status: AttendanceStatus.fromString(json['status'] as String),
         verificationMethod: VerificationMethod.fromString(
             json['verificationMethod'] as String),
@@ -167,8 +200,11 @@ class AttendanceRecordModel {
         'studentId': studentId,
         'attendanceSessionId': attendanceSessionId,
         'subjectId': subjectId,
+        'subjectName': subjectName,
         'courseId': courseId,
         'teacherId': teacherId,
+        'teacherName': teacherName,
+        'room': room,
         'status': status.name,
         'verificationMethod': verificationMethod.name,
         'timestamp': timestamp.toIso8601String(),
@@ -186,6 +222,8 @@ class SubjectAttendance {
   final String subjectId;
   final String subjectName;
   final String subjectCode;
+  final String? teacherName;
+  final int? credits;
   final int totalClasses;
   final int present;
   final int absent;
@@ -197,6 +235,8 @@ class SubjectAttendance {
     required this.subjectId,
     required this.subjectName,
     required this.subjectCode,
+    this.teacherName,
+    this.credits,
     required this.totalClasses,
     required this.present,
     required this.absent,
@@ -206,14 +246,17 @@ class SubjectAttendance {
   });
 
   double get percentage =>
-      totalClasses > 0 ? ((present + late) / totalClasses) * 100 : 0;
+      totalClasses > 0 ? ((present + late) / totalClasses) * 100 : 0.0;
 
   bool isBelowThreshold(double threshold) => percentage < threshold;
 
   /// Classes needed to reach threshold.
   int classesNeededForThreshold(double threshold) {
-    if (percentage >= threshold) return 0;
+    if (totalClasses == 0 || percentage >= threshold) return 0;
     final target = threshold / 100;
+    if (target >= 1.0) {
+      return 1;
+    }
     // (present + late + x) / (totalClasses + x) >= target
     // Solving: x >= (target * totalClasses - present - late) / (1 - target)
     final needed = ((target * totalClasses - present - late) / (1 - target))
@@ -223,11 +266,29 @@ class SubjectAttendance {
 
   /// Classes that can be missed before falling below threshold.
   int classesCanMiss(double threshold) {
-    if (percentage < threshold) return 0;
+    if (totalClasses == 0 || percentage < threshold) return 0;
     final target = threshold / 100;
+    if (target <= 0.0) return totalClasses;
     // (present + late) / (totalClasses + x) >= target
     // x <= (present + late) / target - totalClasses
     final canMiss = ((present + late) / target - totalClasses).floor();
     return canMiss > 0 ? canMiss : 0;
+  }
+
+  /// Human-readable mathematical status message.
+  String getStatusMessage({double threshold = 75.0}) {
+    if (totalClasses == 0) {
+      return 'No classes conducted yet';
+    }
+    if (percentage >= threshold) {
+      final canMiss = classesCanMiss(threshold);
+      if (canMiss > 0) {
+        return 'Can miss $canMiss more class${canMiss == 1 ? '' : 'es'}';
+      }
+      return 'On track (${percentage.toStringAsFixed(0)}% attendance)';
+    } else {
+      final needed = classesNeededForThreshold(threshold);
+      return 'Need $needed class${needed == 1 ? '' : 'es'} to reach ${threshold.toInt()}%';
+    }
   }
 }

@@ -119,9 +119,29 @@ class FirestoreService {
     await _db.collection('courses').doc(course.id).set(course.toJson());
   }
 
-  /// Save a subject (admin operation).
+  /// Save a subject (admin/teacher operation).
   Future<void> saveSubject(SubjectModel subject) async {
     await _db.collection('subjects').doc(subject.id).set(subject.toJson());
+  }
+
+  /// Adds a new subject created by a teacher and associates it with their profile.
+  Future<void> addTeacherSubject({
+    required String teacherUid,
+    required SubjectModel subject,
+  }) async {
+    // 1. Save subject document
+    await saveSubject(subject);
+
+    // 2. Associate subject with teacher profile
+    final teacherRef = _db.collection('teachers').doc(teacherUid);
+    final teacherDoc = await teacherRef.get();
+    if (teacherDoc.exists && teacherDoc.data() != null) {
+      final currentList = List<String>.from(teacherDoc.data()!['subjectIds'] ?? []);
+      if (!currentList.contains(subject.id)) {
+        currentList.add(subject.id);
+        await teacherRef.update({'subjectIds': currentList});
+      }
+    }
   }
 
   /// Save a batch (admin operation).
@@ -497,8 +517,11 @@ class FirestoreService {
           studentId: studentUid,
           attendanceSessionId: session.id,
           subjectId: session.subjectId,
+          subjectName: session.subjectName,
           courseId: session.courseId,
           teacherId: session.teacherId,
+          teacherName: session.teacherName,
+          room: session.room,
           status: AttendanceStatus.present,
           verificationMethod: VerificationMethod.qr,
           timestamp: now,
