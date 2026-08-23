@@ -101,6 +101,7 @@ class AttendanceSessionModel {
     bool? isActive,
     String? room,
     String? subjectName,
+    String? subjectCode,
     String? teacherName,
   }) =>
       AttendanceSessionModel(

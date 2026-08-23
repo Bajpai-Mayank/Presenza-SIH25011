@@ -1,138 +1,94 @@
-# Presenza V2 — SIH25011 Implementation Plan & Architecture Specification
+# Presenza v2 — Performance, Android Build & SIH25011 Enhancement Implementation Plan
 
-**Project**: Presenza (Smart Curriculum Activity & Attendance App)  
-**Problem Statement**: SIH25011 — Government of Punjab (Smart Education)  
-**Target Branch**: `feature/presenza-v2`  
-**Base Production Branch**: `main` (Preserved stable)  
-**Firebase Project**: `presenza-9115c`  
+**Branch**: `feature/presenza-v2`  
+**Problem Statement**: SIH25011 — Smart Curriculum Activity & Attendance App  
+**Status**: Ready for Review & Execution  
 
 ---
 
-## 1. System Overview & Objectives
-Presenza is designed as a secure, production-ready solution for SIH25011. Rather than being a simple QR attendance demo, it unifies:
-1. **Smart Attendance Verification** (QR code + GPS location geofencing + Firestore atomic transaction verification).
-2. **Curriculum & Academic Management** (Subjects, credits, courses, semesters, batches/sections).
-3. **Academic Activities & Events Hub** (Distinguishing official institutional announcements from student-organized club/hackathon/study group activities).
-4. **Academic & Attendance Insights** (Replacing generic empty leaderboards with student attendance health, streaks, at-risk warnings, and milestones).
-5. **Teacher Live Session Management** (Real-time roster counting: present, absent, rate, live attendee feed, session countdown).
-6. **Platform & Database Security** (Android `FLAG_SECURE` screenshot/recording prevention, robust role-based Firestore security rules, sanitized logging).
-7. **Production SaaS Mobile UI** (Un-truncated bottom navigation, responsive glassmorphism, 5-second student dashboard hierarchy, elegant empty and loading states).
+## Executive Summary
+
+This plan outlines the architecture and tasks required to bring **Presenza** to production-grade quality for the SIH25011 problem statement. We are working strictly on the dedicated branch `feature/presenza-v2` without modifying `main`/production directly.
+
+The plan addresses:
+1. **Android APK Release Build**: Tooling compatibility upgrades (Gradle wrapper, Android Gradle Plugin, Kotlin DSL) and clean release APK generation.
+2. **Startup Lag Elimination & Fast Web Preloader**: Branded dark-mode splash/loader in `web/index.html`, deferred/lazy initialization of expensive services, and elimination of unnecessary re-renders.
+3. **Firestore & State Optimizations**: Eliminating excessive collections fetches, scoping streams to active queries, adding robust error/empty/retry states.
+4. **Attendance System Upgrades**: Rich teacher session context (Class, Subject, Time, Room, Teacher, Method, Enrolled, Present, Absent, Pending, Rate %) and dynamic "Other / Enter subject manually" support.
+5. **Academic Insights & Milestones**: Personal attendance health index, subject-wise strengths vs priority alerts, what-if simulator, and 100% Firestore-backed milestone badges.
+6. **Circulars & Activity Hub**: Categorized dual-tier feed distinguishing verified official notices from student-proposed hackathons/workshops with moderation.
+7. **Platform Security & Android `FLAG_SECURE`**: Native Kotlin `MethodChannel` preventing screenshot and screen recording abuse on sensitive views, with platform-safe fallbacks.
 
 ---
 
-## 2. Pre-Implementation Safety Report
+## User Review Required
 
-| Metric | Status |
-| :--- | :--- |
-| **Current Branch** | `feature/presenza-v2` |
-| **Production Branch** | `main` (Untouched, sync with `origin/main`) |
-| **Base Commit** | `1f67fa6` (*Production Firebase hardening, registration flow, index-free queries, and Vercel/APK build optimizations*) |
-| **Working Tree** | Clean, 0 uncommitted changes |
-| **Firebase Project** | `presenza-9115c` |
-| **Database Safety** | Zero destructive changes; additive collections & backward-compatible document fields |
+> [!IMPORTANT]
+> **Android Build Tooling**: We are upgrading the Kotlin Gradle plugin version to `2.1.10` / `2.2.20` and Gradle wrapper to `8.9` / `8.11.1` in the Kotlin DSL configuration (`android/settings.gradle.kts` and `android/gradle/wrapper/gradle-wrapper.properties`).
+> 
+> **Web Screenshot Protection Disclaimer**: Web browsers do not provide hardware-level screenshot prevention APIs equivalent to Android `FLAG_SECURE`. The app implements native Android `FLAG_SECURE` and handles web/desktop environments with safe non-blocking fallbacks.
 
 ---
 
-## 3. Detailed Component Architecture & Changes
+## Proposed Changes by Module
 
-### 3.1 Attendance Context & Mathematical Precision
-- **Context Details**:
-  - Each attendance record / session detail displays: Subject Name, Subject Code, Teacher, Class/Batch, Date, Start/End time, Present/Absent/Late status, and Verification Method (QR / Geofenced).
-- **Mathematical Edge Cases**:
-  - Prevent confusing "0 classes" or "Need 0 classes to pass" when no classes have occurred yet (`totalClasses == 0`).
-  - `classesNeededForThreshold(75.0)`: Formula `((0.75 * total - present - late) / 0.25).ceil()` with safety bounds.
-  - `classesCanMiss(75.0)`: Formula `((present + late) / 0.75 - total).floor()` with safety bounds.
-- **Student Session History**:
-  - Detailed list view of attended/missed classes per subject with real timestamps.
+### 1. Android Build Tooling & Release APK
+- [android/gradle/wrapper/gradle-wrapper.properties](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/gradle/wrapper/gradle-wrapper.properties): Gradle 8.9 / 8.11.1 wrapper verification.
+- [android/settings.gradle.kts](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/settings.gradle.kts): Configure AGP `8.7.3` / `8.9.0` and Kotlin `2.1.10` / `2.2.20`.
+- [android/app/build.gradle.kts](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/app/build.gradle.kts): Configure JVM 17 target compatibility.
+- **Verification**: Run `flutter build apk --release` and verify `build/app/outputs/flutter-apk/app-release.apk`.
 
-### 3.2 Teacher Subject Management & Flexible Session Creator
-- **Subject Management**:
-  - Teachers can select from assigned subjects or create a new subject (Name, Code, Semester, Credits, Course) on demand.
-  - New subjects are persisted in Firestore `/subjects/` and linked to the teacher profile (`subjectIds`).
-- **Session Creator**:
-  - Teacher selects Subject, Batch/Section, Duration (minutes), and optional Location/Room.
-  - Generates secure session document in Firestore `/sessions/` with ISO timestamps.
+### 2. Startup Performance & Web Fast Loading Screen
+- [web/index.html](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/web/index.html): Add styled CSS dark-theme splash screen (`#loading-container`) with Presenza branding and animated pulse spinner so users never see a blank white screen during bundle loading.
+- [lib/main.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/main.dart): Ensure Firebase initialization is efficient, with graceful fallback loaders.
+- **Verification**: Run `flutter build web --release` and inspect web load sequence.
 
-### 3.3 Real-Time Teacher Attendance Monitoring
-- **Live Roster Counts**:
-  - Compares scanned students in `/attendance_records` against total students enrolled in the selected `/batches/{batchId}`.
-  - Real-time updates: Present, Absent, Attendance Percentage.
-- **Attendee Roster**:
-  - Real-time stream of verified students with check-in timestamp and verification badges.
-- **Session Control**:
-  - Live countdown timer, automatic expiry, and immediate "Close Session" button.
+### 3. Teacher Subject Management & Flexible Session Attendance Dashboard
+- [lib/features/teacher/screens/teacher_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/teacher/screens/teacher_shell.dart):
+  - Add "+ Enter Subject Manually / Other" option inside the subject selection dropdown and session creator modal.
+  - Live session dashboard displaying:
+    - Subject Name & Code
+    - Class / Batch
+    - Date and time
+    - Room / Location
+    - Teacher name
+    - Attendance Method: QR Code / GPS Geofenced / Manual
+    - 3-Stat Live Grid: Present Count, Absent Count, Pending Count, Live Attendance %
+    - Live verified student attendee roster with timestamps and verification mode badges.
 
-### 3.4 QR Attendance Security & Transactions
-- **Scan Flow**:
-  - Camera opening does NOT mark attendance.
-  - Attendance requires: valid QR decoding -> session lookup -> active status -> non-expired check -> student course/batch eligibility check -> atomic duplicate check -> transaction write.
-- **Atomicity**:
-  - Handled via `FirestoreService.markAttendanceWithTransaction` using Firestore `runTransaction`.
-- **Manual Code Entry**:
-  - Evaluated against identical server transaction rules.
+### 4. Student Academic Insights & Milestone Badges
+- [lib/features/student/screens/student_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/student/screens/student_shell.dart):
+  - Attendance Health index with streak count.
+  - Subject performance split: Strong Standing vs Priority Attention (with exact classes needed).
+  - Target attendance simulator (1-15 classes simulation).
+  - 4 Milestone badges (75% Benchmark, Perfect Record, 3-Day Streak, Zero Absences) tied to live data.
 
-### 3.5 Academic Insights (Replacing Leaderboard)
-- **Attendance Insights**:
-  - Overall attendance percentage across all enrolled subjects.
-  - Highest & Lowest attendance subjects (Highlighting subjects < 75%).
-  - Streak & Consistency tracker.
-  - Achievement & Milestone badges (e.g. "Perfect Record", "75%+ Safe Zone", "5-Day Streak", "Activity Champion").
-- **Real Data**:
-  - Computed purely from student's Firestore attendance records.
+### 5. Circulars & Academic Activity Hub
+- [lib/data/models/app_models.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/data/models/app_models.dart): Dual-tier metadata (`isOfficial`, `authorRole`, `eventType`, `location`, `organizer`).
+- [lib/features/student/screens/student_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/student/screens/student_shell.dart) & [lib/features/teacher/screens/teacher_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/teacher/screens/teacher_shell.dart):
+  - Filter chips (`All`, `Official Notices`, `Events & Hackathons`, `Clubs & Meetups`).
+  - Peer activity sharing modal for students and verified announcement creator for faculty.
 
-### 3.6 Academic Activities & Events System
-- **Models**:
-  - `ActivityModel` / `EventModel` supporting scope (`official` vs `studentCreated`), categories (`assignment`, `exam`, `workshop`, `seminar`, `hackathon`, `club`, `studyGroup`, `holiday`, `department`), date/time, location, organizer, attachment, creator role.
-- **Teacher/Admin Experience**:
-  - Create official academic notices, exam announcements, department workshops.
-  - Edit/archive author's own notices.
-- **Student Experience**:
-  - Create student activities (Club event, study group, hackathon).
-  - Clear visual badges: `OFFICIAL ACADEMIC` vs `STUDENT CREATED`.
-- **Upcoming Events**:
-  - Chronological schedule cards with a full detail sheet/dialog.
+### 6. Android Platform Screenshot Protection (`FLAG_SECURE`)
+- [android/app/src/main/kotlin/com/example/presenza/MainActivity.kt](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/app/src/main/kotlin/com/example/presenza/MainActivity.kt): Native Kotlin `MethodChannel` (`com.example.presenza/security`).
+- [lib/core/services/security_service.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/core/services/security_service.dart): Safe Dart wrapper with `enableScreenshotProtection()` and `disableScreenshotProtection()`.
+- [lib/features/student/screens/qr_scanner_screen.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/student/screens/qr_scanner_screen.dart) & [lib/features/teacher/screens/teacher_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/teacher/screens/teacher_shell.dart): Protect active QR code displays and scanner.
 
-### 3.7 Platform Security & Android Screenshot Protection
-- **Android `FLAG_SECURE`**:
-  - Implemented via MethodChannel in `MainActivity.kt` (`presenza/security`) to prevent screenshots and screen recording on sensitive screens (Profile, QR Scanner, Student ID, Teacher Live Session).
-  - Dart `SecurityService` to enable/disable protection per screen lifecycle.
-- **Logging**:
-  - Clean debug output with zero sensitive credentials or tokens.
-
-### 3.8 Firestore Security Rules Hardening
-- Strengthen `firestore.rules` for:
-  - Role-based authorization.
-  - Preventing students from modifying other users' attendance.
-  - Enforcing author restrictions on activities and circulars.
-
-### 3.9 UI/UX Redesign & Navigation Refinements
-- **Bottom Navigation**:
-  - Fix truncated labels.
-  - Student: `Home`, `Attendance`, `Activities`, `Insights`, `Profile`
-  - Teacher: `Home`, `Sessions`, `Activities`, `Students`, `Profile`
-  - Admin: `Analytics`, `Policies`, `Users`, `Audit`, `Profile`
-- **Dashboard**:
-  - 5-second hierarchy: Greeting, Overall %, Today's Classes, Quick Action Buttons, Attendance Alert Banner, Upcoming Activities.
+### 7. Cloud Firestore Hardened Security Rules
+- [firestore.rules](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/firestore.rules): Role-based access control, restricting attendance creation to faculty and check-ins to authenticated students.
 
 ---
 
-## 4. Git Commit Strategy (10 Logical Commits)
+## Verification Plan
 
-1. `chore: create Presenza v2 development branch`
-2. `feat: improve attendance session context and mathematical edge-case handling`
-3. `feat: add teacher subject management and dynamic session creator`
-4. `feat: improve teacher live attendance monitoring and roster dashboard`
-5. `feat: replace leaderboard with real-time academic insights and milestones`
-6. `feat: expand circulars into academic activities and student events hub`
-7. `security: add Android FLAG_SECURE platform screenshot protection`
-8. `security: harden Firestore security rules and role authorization`
-9. `ui: refine mobile experience, navigation labels, and empty/loading states`
-10. `test: add Presenza v2 unit and widget regression tests`
+### Automated Tests
+- Run `flutter test` (12 unit and regression tests covering attendance math, models, security services, and session lifecycle).
+- Run `dart analyze` to ensure zero compilation warnings or errors.
 
----
+### Build Verification
+- Run `flutter build apk --release` to verify Android release APK generation.
+- Run `flutter build web --release` to verify Web production release bundle.
 
-## 5. Verification & Testing
-
-- Run `flutter test` for all mathematical calculations, models, and widget behaviors.
-- Perform static analysis with `dart analyze`.
-- Verify student, teacher, and admin workflows interactively.
+### Manual / Browser Verification
+- Test Student flow at `http://127.0.0.1:8080`: Dashboard, Attendance Drilldown Sheet, Activities Hub, Academic Insights.
+- Test Teacher flow at `http://127.0.0.1:8080`: Manual Subject Creation, QR Session Generator, Live Attendance Monitor.

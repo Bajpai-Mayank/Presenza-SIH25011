@@ -633,13 +633,34 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
                         fillColor: Colors.transparent,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      items: subjects.map((sub) {
-                        return DropdownMenuItem(
-                          value: sub.id,
-                          child: Text('${sub.name} (${sub.code})'),
-                        );
-                      }).toList(),
-                      onChanged: (val) => setState(() => _selectedSubjectId = val),
+                      items: [
+                        ...subjects.map((sub) {
+                          return DropdownMenuItem(
+                            value: sub.id,
+                            child: Text('${sub.name} (${sub.code})'),
+                          );
+                        }),
+                        const DropdownMenuItem(
+                          value: '__manual_entry__',
+                          child: Row(
+                            children: [
+                              Icon(Icons.add_circle_outline, size: 16, color: AppColors.info),
+                              SizedBox(width: 8),
+                              Text(
+                                'Other / Enter Subject Manually...',
+                                style: TextStyle(color: AppColors.info, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val == '__manual_entry__') {
+                          _showAddSubjectDialog(teacher.user.id);
+                        } else if (val != null) {
+                          setState(() => _selectedSubjectId = val);
+                        }
+                      },
                     )
                   else
                     Container(
@@ -818,6 +839,60 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
 
                   return Column(
                     children: [
+                      // Detailed Session Metadata Card
+                      GlassCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Class: ${activeSession.batchId} • ${activeSession.room ?? 'Room 401'}',
+                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Faculty: ${activeSession.teacherName ?? teacher.user.name} • ${DateFormat('hh:mm a').format(activeSession.startTime)}',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                StatusBadge(
+                                  label: activeSession.locationRequired ? 'QR + GPS (200m)' : 'QR Code Only',
+                                  color: activeSession.locationRequired ? AppColors.success : AppColors.info,
+                                  small: true,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.white.withAlpha(8),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Enrolled: $totalEnrolled', style: Theme.of(context).textTheme.labelSmall),
+                                  Text('Present: $presentCount', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success, fontWeight: FontWeight.bold)),
+                                  Text('Absent: $absentCount', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.warning)),
+                                  Text('Rate: ${attendancePercentage.toStringAsFixed(1)}%', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.info, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
                       // 3-Stat Live Monitoring Grid
                       Row(
                         children: [
