@@ -994,53 +994,255 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// TAB 2: CIRCULARS
+// TAB 2: ACADEMIC ACTIVITIES & CIRCULARS
 // ══════════════════════════════════════════════════════════════════════
 class _TeacherCircularsTab extends ConsumerWidget {
   const _TeacherCircularsTab();
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final list = ref.watch(circularsProvider);
+  void _showCreateAnnouncementDialog(BuildContext context, WidgetRef ref, String teacherUid, String teacherName) {
+    final titleCtrl = TextEditingController();
+    final contentCtrl = TextEditingController();
+    final locationCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    CircularCategory selectedCategory = CircularCategory.academic;
+    CircularPriority selectedPriority = CircularPriority.medium;
+    DateTime? selectedEventDate;
+    bool isSaving = false;
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(20),
-      itemCount: list.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final c = list[index];
-        return GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Publish Academic Notice / Event'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  StatusBadge(
-                    label: c.category.displayName,
-                    color: c.isUrgent ? AppColors.error : AppColors.info,
-                    small: true,
+                  TextFormField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Notice / Event Title',
+                      hintText: 'e.g. Mid-Term Assessment Schedule',
+                      prefixIcon: Icon(Icons.title),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
-                  Text(
-                    '${c.publishDate.day}/${c.publishDate.month}',
-                    style: Theme.of(context).textTheme.labelSmall,
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<CircularCategory>(
+                    initialValue: selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                      prefixIcon: Icon(Icons.category_outlined),
+                    ),
+                    items: CircularCategory.values
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c.displayName)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedCategory = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<CircularPriority>(
+                    initialValue: selectedPriority,
+                    decoration: const InputDecoration(
+                      labelText: 'Priority',
+                      prefixIcon: Icon(Icons.flag_outlined),
+                    ),
+                    items: CircularPriority.values
+                        .map((p) => DropdownMenuItem(value: p, child: Text(p.displayName)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedPriority = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: locationCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Event Location / Room (Optional)',
+                      hintText: 'e.g. Seminar Hall 1 / Online',
+                      prefixIcon: Icon(Icons.pin_drop_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: contentCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Notice Content / Description',
+                      hintText: 'Provide detailed instructions or notice body...',
+                      prefixIcon: Icon(Icons.description_outlined),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isSaving = true);
+
+                      final now = DateTime.now();
+                      final uuid = const Uuid().v4().substring(0, 8);
+                      final circular = CircularModel(
+                        id: 'circ-$uuid',
+                        title: titleCtrl.text.trim(),
+                        content: contentCtrl.text.trim(),
+                        category: selectedCategory,
+                        priority: selectedPriority,
+                        authorId: teacherUid,
+                        authorName: teacherName,
+                        authorRole: 'teacher',
+                        isOfficial: true,
+                        location: locationCtrl.text.trim().isNotEmpty ? locationCtrl.text.trim() : null,
+                        eventDate: selectedEventDate ?? now,
+                        publishDate: now,
+                        createdAt: now,
+                        updatedAt: now,
+                      );
+
+                      final firestoreService = FirestoreService();
+                      await firestoreService.saveCircular(circular);
+
+                      if (context.mounted) {
+                        Navigator.pop(dialogCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Notice published to all enrolled students.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Publish Notice'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final list = ref.watch(circularsProvider);
+    final teacher = ref.watch(teacherProfileProvider);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
               Text(
-                c.title,
-                style: Theme.of(context).textTheme.titleMedium,
+                'Department Notices (${list.length})',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 4),
-              Text(
-                c.content,
-                style: Theme.of(context).textTheme.bodySmall,
+              FilledButton.tonalIcon(
+                onPressed: teacher != null
+                    ? () => _showCreateAnnouncementDialog(context, ref, teacher.user.id, teacher.user.name)
+                    : null,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Post Notice'),
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 16),
+          if (list.isEmpty)
+            GlassCard(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Text(
+                  'No circulars or academic notices published yet.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.gray400),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: list.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 14),
+              itemBuilder: (context, index) {
+                final c = list[index];
+                return GlassCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              StatusBadge(
+                                label: c.isOfficial ? 'OFFICIAL' : 'STUDENT EVENT',
+                                color: c.isOfficial ? AppColors.info : AppColors.secondary,
+                                small: true,
+                              ),
+                              const SizedBox(width: 6),
+                              StatusBadge(
+                                label: c.category.displayName,
+                                color: c.isUrgent ? AppColors.error : AppColors.gray400,
+                                small: true,
+                              ),
+                            ],
+                          ),
+                          Text(
+                            DateFormat('dd MMM yyyy').format(c.publishDate),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        c.title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        c.content,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      if (c.location != null && c.location!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.pin_drop_outlined, size: 14, color: AppColors.gray400),
+                            const SizedBox(width: 4),
+                            Text(
+                              c.location!,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Text(
+                        'Posted by: ${c.authorName}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray500),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
     );
   }
 }

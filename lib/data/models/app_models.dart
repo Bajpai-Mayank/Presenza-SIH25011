@@ -10,6 +10,12 @@ class CircularModel {
   final CircularPriority priority;
   final String authorId;
   final String authorName;
+  final String? authorRole; // 'teacher', 'admin', 'student'
+  final bool isOfficial;
+  final String? eventType; // 'academic', 'hackathon', 'workshop', 'club', 'competition'
+  final String? location;
+  final DateTime? eventDate;
+  final String? organizer;
   final List<String>? targetCourseIds;
   final List<String>? targetBatchIds;
   final List<String> attachmentUrls;
@@ -27,6 +33,12 @@ class CircularModel {
     required this.priority,
     required this.authorId,
     required this.authorName,
+    this.authorRole,
+    this.isOfficial = true,
+    this.eventType,
+    this.location,
+    this.eventDate,
+    this.organizer,
     this.targetCourseIds,
     this.targetBatchIds,
     this.attachmentUrls = const [],
@@ -45,6 +57,14 @@ class CircularModel {
         priority: CircularPriority.fromString(json['priority'] as String),
         authorId: json['authorId'] as String,
         authorName: json['authorName'] as String,
+        authorRole: json['authorRole'] as String?,
+        isOfficial: json['isOfficial'] as bool? ?? true,
+        eventType: json['eventType'] as String?,
+        location: json['location'] as String?,
+        eventDate: json['eventDate'] != null
+            ? DateTime.parse(json['eventDate'] as String)
+            : null,
+        organizer: json['organizer'] as String?,
         targetCourseIds: (json['targetCourseIds'] as List<dynamic>?)
             ?.cast<String>()
             .toList(),
@@ -72,6 +92,12 @@ class CircularModel {
         'priority': priority.name,
         'authorId': authorId,
         'authorName': authorName,
+        'authorRole': authorRole,
+        'isOfficial': isOfficial,
+        'eventType': eventType,
+        'location': location,
+        'eventDate': eventDate?.toIso8601String(),
+        'organizer': organizer,
         'targetCourseIds': targetCourseIds,
         'targetBatchIds': targetBatchIds,
         'attachmentUrls': attachmentUrls,

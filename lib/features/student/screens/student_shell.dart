@@ -21,8 +21,8 @@ class _StudentShellState extends ConsumerState<StudentShell> {
   final List<String> _titles = [
     'Dashboard',
     'Attendance',
-    'Circulars',
-    'Leaderboard',
+    'Activities',
+    'Academic Insights',
     'Profile',
   ];
 
@@ -126,8 +126,8 @@ class _StudentShellState extends ConsumerState<StudentShell> {
     final pages = [
       const _StudentHomeTab(),
       const _StudentAttendanceTab(),
-      const _StudentCircularsTab(),
-      const _StudentLeaderboardTab(),
+      const _StudentActivitiesTab(),
+      const _StudentInsightsTab(),
       const _StudentProfileTab(),
     ];
 
@@ -190,6 +190,7 @@ class _StudentShellState extends ConsumerState<StudentShell> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
+          type: BottomNavigationBarType.fixed,
           onTap: (index) => setState(() => _currentIndex = index),
           items: const [
             BottomNavigationBarItem(
@@ -203,14 +204,14 @@ class _StudentShellState extends ConsumerState<StudentShell> {
               label: 'Attendance',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.campaign_outlined),
-              activeIcon: Icon(Icons.campaign),
-              label: 'Circulars',
+              icon: Icon(Icons.event_note_outlined),
+              activeIcon: Icon(Icons.event_note),
+              label: 'Activities',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.emoji_events_outlined),
-              activeIcon: Icon(Icons.emoji_events),
-              label: 'Leaderboard',
+              icon: Icon(Icons.insights_outlined),
+              activeIcon: Icon(Icons.insights),
+              label: 'Insights',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -1025,107 +1026,308 @@ class _SubjectDetailSheet extends ConsumerWidget {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// TAB 2: CIRCULARS
+// TAB 2: ACADEMIC ACTIVITIES & EVENTS
 // ══════════════════════════════════════════════════════════════════════
-class _StudentCircularsTab extends ConsumerStatefulWidget {
-  const _StudentCircularsTab();
+class _StudentActivitiesTab extends ConsumerStatefulWidget {
+  const _StudentActivitiesTab();
 
   @override
-  ConsumerState<_StudentCircularsTab> createState() => _StudentCircularsTabState();
+  ConsumerState<_StudentActivitiesTab> createState() => _StudentActivitiesTabState();
 }
 
-class _StudentCircularsTabState extends ConsumerState<_StudentCircularsTab> {
-  CircularCategory? _selectedCategory;
+class _StudentActivitiesTabState extends ConsumerState<_StudentActivitiesTab> {
+  String _filter = 'all'; // 'all', 'official', 'events', 'clubs'
+
+  void _showCreateStudentActivityDialog() {
+    final titleCtrl = TextEditingController();
+    final contentCtrl = TextEditingController();
+    final locationCtrl = TextEditingController();
+    final organizerCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    CircularCategory selectedCategory = CircularCategory.event;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Share Student Activity / Event'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Activity Title',
+                      hintText: 'e.g. Hackathon Team Formation / AI Club Meetup',
+                      prefixIcon: Icon(Icons.title),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<CircularCategory>(
+                    initialValue: selectedCategory,
+                    decoration: const InputDecoration(
+                      labelText: 'Activity Type',
+                      prefixIcon: Icon(Icons.category_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: CircularCategory.event, child: Text('Hackathon / Competition')),
+                      DropdownMenuItem(value: CircularCategory.holiday, child: Text('Club Meetup / Workshop')),
+                      DropdownMenuItem(value: CircularCategory.general, child: Text('Study Group / Project')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedCategory = val);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: organizerCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Club / Student Organizer',
+                      hintText: 'e.g. Presenza Robotics Club',
+                      prefixIcon: Icon(Icons.groups_outlined),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: locationCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Venue / Online Link',
+                      hintText: 'e.g. CS Lab 2 / Google Meet',
+                      prefixIcon: Icon(Icons.pin_drop_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: contentCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Details & Description',
+                      hintText: 'Describe agenda, prerequisites, or contact info...',
+                      prefixIcon: Icon(Icons.description_outlined),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      final student = ref.read(studentProfileProvider);
+                      if (student == null) return;
+
+                      setDialogState(() => isSaving = true);
+
+                      final now = DateTime.now();
+                      final uuid = const Uuid().v4().substring(0, 8);
+                      final circular = CircularModel(
+                        id: 'act-$uuid',
+                        title: titleCtrl.text.trim(),
+                        content: contentCtrl.text.trim(),
+                        category: selectedCategory,
+                        priority: CircularPriority.low,
+                        authorId: student.user.id,
+                        authorName: student.user.name,
+                        authorRole: 'student',
+                        isOfficial: false,
+                        eventType: selectedCategory.name,
+                        location: locationCtrl.text.trim().isNotEmpty ? locationCtrl.text.trim() : null,
+                        organizer: organizerCtrl.text.trim(),
+                        publishDate: now,
+                        eventDate: now.add(const Duration(days: 2)),
+                        createdAt: now,
+                        updatedAt: now,
+                      );
+
+                      final firestoreService = FirestoreService();
+                      await firestoreService.saveCircular(circular);
+
+                      if (mounted) {
+                        Navigator.pop(dialogCtx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Student activity shared with peers.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Share Activity'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final list = ref.watch(circularsProvider);
-    final filtered = _selectedCategory == null
-        ? list
-        : list.where((c) => c.category == _selectedCategory).toList();
+    final filtered = list.where((c) {
+      if (_filter == 'official') return c.isOfficial;
+      if (_filter == 'events') return !c.isOfficial || c.category == CircularCategory.event;
+      if (_filter == 'clubs') return !c.isOfficial;
+      return true;
+    }).toList();
 
     return Column(
       children: [
-        // Horizontal Categories List
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        // Filter Chips & Share Button Row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
           child: Row(
             children: [
-              FilterChip(
-                label: const Text('All'),
-                selected: _selectedCategory == null,
-                onSelected: (_) => setState(() => _selectedCategory = null),
-              ),
-              const SizedBox(width: 8),
-              ...CircularCategory.values.map(
-                (cat) => Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: FilterChip(
-                    label: Text(cat.displayName),
-                    selected: _selectedCategory == cat,
-                    onSelected: (sel) => setState(() => _selectedCategory = sel ? cat : null),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      FilterChip(
+                        label: const Text('All'),
+                        selected: _filter == 'all',
+                        onSelected: (_) => setState(() => _filter = 'all'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Official Notices'),
+                        selected: _filter == 'official',
+                        onSelected: (_) => setState(() => _filter = 'official'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Events & Hackathons'),
+                        selected: _filter == 'events',
+                        onSelected: (_) => setState(() => _filter = 'events'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilterChip(
+                        label: const Text('Clubs & Meetups'),
+                        selected: _filter == 'clubs',
+                        onSelected: (_) => setState(() => _filter = 'clubs'),
+                      ),
+                    ],
                   ),
                 ),
+              ),
+              IconButton.filledTonal(
+                icon: const Icon(Icons.add, size: 20),
+                tooltip: 'Share Student Activity',
+                onPressed: _showCreateStudentActivityDialog,
               ),
             ],
           ),
         ),
 
-        // Notices List
+        // Activities List
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: filtered.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              final c = filtered[index];
-              return GlassCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        StatusBadge(
-                          label: c.category.displayName,
-                          color: c.isUrgent ? AppColors.error : AppColors.info,
-                          small: true,
-                        ),
-                        Text(
-                          '${c.publishDate.day}/${c.publishDate.month}/${c.publishDate.year}',
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                      ],
+          child: filtered.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Text(
+                      'No activities or notices found in this category.',
+                      style: TextStyle(color: AppColors.gray400),
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      c.title,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      c.content,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    if (c.attachmentUrls.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Row(
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: filtered.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final c = filtered[index];
+                    return GlassCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.attach_file, size: 16, color: AppColors.gray400),
-                          const SizedBox(width: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  StatusBadge(
+                                    label: c.isOfficial ? 'OFFICIAL ACADEMIC' : 'STUDENT ACTIVITY',
+                                    color: c.isOfficial ? AppColors.info : AppColors.secondary,
+                                    small: true,
+                                  ),
+                                  if (c.isUrgent) ...[
+                                    const SizedBox(width: 6),
+                                    const StatusBadge(
+                                      label: 'URGENT',
+                                      color: AppColors.error,
+                                      small: true,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              Text(
+                                DateFormat('dd MMM yyyy').format(c.publishDate),
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
                           Text(
-                            c.attachmentUrls.first,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                            c.title,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            c.content,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          if (c.location != null && c.location!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.pin_drop_outlined, size: 14, color: AppColors.gray400),
+                                const SizedBox(width: 4),
+                                Text(
+                                  c.location!,
+                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                c.organizer != null && c.organizer!.isNotEmpty
+                                    ? 'Organized by: ${c.organizer}'
+                                    : 'By: ${c.authorName}',
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray500),
+                              ),
+                              Text(
+                                c.category.displayName,
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.gray400),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ],
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -1133,61 +1335,386 @@ class _StudentCircularsTabState extends ConsumerState<_StudentCircularsTab> {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// TAB 3: LEADERBOARD
+// TAB 3: ACADEMIC INSIGHTS & ATTENDANCE ANALYTICS
 // ══════════════════════════════════════════════════════════════════════
-class _StudentLeaderboardTab extends ConsumerWidget {
-  const _StudentLeaderboardTab();
+class _StudentInsightsTab extends ConsumerStatefulWidget {
+  const _StudentInsightsTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_StudentInsightsTab> createState() => _StudentInsightsTabState();
+}
+
+class _StudentInsightsTabState extends ConsumerState<_StudentInsightsTab> {
+  double _extraClassesToSimulate = 3;
+
+  @override
+  Widget build(BuildContext context) {
     final student = ref.watch(studentProfileProvider);
-    final list = ref.watch(leaderboardProvider);
+    final overallAttendance = ref.watch(overallAttendanceProvider);
+    final subjects = ref.watch(subjectAttendanceProvider);
+    final streak = ref.watch(attendanceStreakProvider);
 
-    return ListView.separated(
+    final totalClasses = subjects.fold(0, (sum, sa) => sum + sa.totalClasses);
+    final totalPresent = subjects.fold(0, (sum, sa) => sum + sa.present + sa.late);
+    final totalAbsent = subjects.fold(0, (sum, sa) => sum + sa.absent);
+
+    // Subject Performance Buckets
+    final strongSubjects = subjects.where((s) => s.percentage >= 75.0 && s.totalClasses > 0).toList();
+    final atRiskSubjects = subjects.where((s) => s.percentage < 75.0 && s.totalClasses > 0).toList();
+
+    // Projected Attendance Math
+    final projectedClasses = totalClasses + _extraClassesToSimulate.toInt();
+    final projectedPresent = totalPresent + _extraClassesToSimulate.toInt();
+    final projectedPercentage = projectedClasses > 0 ? (projectedPresent / projectedClasses) * 100 : 0.0;
+
+    // Badges Data
+    final has75Benchmark = overallAttendance >= 75.0 && totalClasses > 0;
+    final hasPerfectSubject = subjects.any((s) => s.percentage == 100.0 && s.totalClasses >= 3);
+    final hasStreakBadge = streak >= 3;
+    final hasFullCurriculum = subjects.length >= 3;
+    final hasZeroAbsence = totalAbsent == 0 && totalClasses > 0;
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      itemCount: list.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final entry = list[index];
-        final isMe = student != null && entry.studentName == student.user.name;
-
-        return GlassCard(
-          borderColor: isMe ? AppColors.white.withAlpha(100) : null,
-          child: Row(
-            children: [
-              Text(
-                entry.rank.toString().padLeft(2, '0'),
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: entry.rank == 1 ? Colors.yellow : AppColors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section 1: Academic Standing Scorecard
+          GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      entry.studentName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
-                          ),
+                      'Attendance Health Index',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                     ),
-                    Text(
-                      'Streak: ${entry.streak} days',
-                      style: Theme.of(context).textTheme.bodySmall,
+                    StatusBadge(
+                      label: overallAttendance >= 75.0 ? 'GOOD STANDING' : 'ATTENDANCE ALERT',
+                      color: overallAttendance >= 75.0 ? AppColors.success : AppColors.error,
+                      small: true,
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    AttendanceRing(
+                      percentage: overallAttendance,
+                      size: 90,
+                      strokeWidth: 8,
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            totalClasses > 0
+                                ? '${overallAttendance.toStringAsFixed(1)}% Overall'
+                                : 'No Data Yet',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$totalPresent Attended • $totalAbsent Missed • $totalClasses Total',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              const Icon(Icons.local_fire_department, size: 16, color: AppColors.warning),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$streak Day Attendance Streak',
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: AppColors.warning,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Section 2: Subject Performance Breakdown
+          Text(
+            'Subject Analysis',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+
+          if (atRiskSubjects.isNotEmpty) ...[
+            Text(
+              '⚠️ Needs Focus (< 75% Attendance)',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.error,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            ...atRiskSubjects.map((s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: GlassCard(
+                    borderColor: AppColors.error.withAlpha(80),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(s.subjectName, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                              Text('${s.subjectCode} • ${s.present}/${s.totalClasses} Attended', style: Theme.of(context).textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${s.percentage.toStringAsFixed(1)}%',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.error, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Need ${s.classesNeededForThreshold(75.0)} class(es)',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.error),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                )),
+            const SizedBox(height: 16),
+          ],
+
+          if (strongSubjects.isNotEmpty) ...[
+            Text(
+              '✅ Strong Standing (>= 75% Attendance)',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            ...strongSubjects.map((s) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: GlassCard(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(s.subjectName, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                              Text('${s.subjectCode} • ${s.present}/${s.totalClasses} Attended', style: Theme.of(context).textTheme.bodySmall),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${s.percentage.toStringAsFixed(1)}%',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppColors.success, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Buffer: ${s.classesCanMiss(75.0)} missable',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                )),
+          ],
+          const SizedBox(height: 24),
+
+          // Section 3: Academic Milestone Badges
+          Text(
+            'Academic Milestones & Badges',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.35,
+            children: [
+              _MilestoneBadgeCard(
+                icon: Icons.verified_outlined,
+                title: '75% Benchmark',
+                subtitle: 'Overall attendance >= 75%',
+                isUnlocked: has75Benchmark,
+                accentColor: AppColors.success,
               ),
-              Text(
-                '${entry.attendancePercentage.toStringAsFixed(1)}%',
-                style: Theme.of(context).textTheme.titleMedium,
+              _MilestoneBadgeCard(
+                icon: Icons.star_border_outlined,
+                title: 'Perfect Record',
+                subtitle: '100% in a subject (>=3 classes)',
+                isUnlocked: hasPerfectSubject,
+                accentColor: Colors.amber,
+              ),
+              _MilestoneBadgeCard(
+                icon: Icons.local_fire_department_outlined,
+                title: '3-Day Streak',
+                subtitle: 'Consecutive active streak',
+                isUnlocked: hasStreakBadge,
+                accentColor: Colors.deepOrange,
+              ),
+              _MilestoneBadgeCard(
+                icon: Icons.shield_outlined,
+                title: 'Zero Absences',
+                subtitle: 'No unexcused absences',
+                isUnlocked: hasZeroAbsence,
+                accentColor: AppColors.info,
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 24),
+
+          // Section 4: What-If Attendance Target Simulator
+          GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Attendance Simulator',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '+${_extraClassesToSimulate.toInt()} Classes',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: AppColors.info,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Simulate how attending next consecutive classes will boost your overall percentage:',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                ),
+                Slider(
+                  value: _extraClassesToSimulate,
+                  min: 1,
+                  max: 15,
+                  divisions: 14,
+                  label: '+${_extraClassesToSimulate.toInt()} classes',
+                  onChanged: (val) => setState(() => _extraClassesToSimulate = val),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withAlpha(15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Projected Attendance:',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      Text(
+                        '${projectedPercentage.toStringAsFixed(1)}%',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: projectedPercentage >= 75.0 ? AppColors.success : AppColors.warning,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MilestoneBadgeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool isUnlocked;
+  final Color accentColor;
+
+  const _MilestoneBadgeCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.isUnlocked,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.all(12),
+      borderColor: isUnlocked ? accentColor.withAlpha(100) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(
+                icon,
+                size: 24,
+                color: isUnlocked ? accentColor : AppColors.gray500,
+              ),
+              StatusBadge(
+                label: isUnlocked ? 'EARNED' : 'LOCKED',
+                color: isUnlocked ? accentColor : AppColors.gray500,
+                small: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isUnlocked ? AppColors.white : AppColors.gray400,
+                ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.gray400,
+                  fontSize: 10,
+                ),
+          ),
+        ],
+      ),
     );
   }
 }
