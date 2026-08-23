@@ -214,6 +214,7 @@ final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
   if (student == null) return [];
 
   final subjects = ref.watch(subjectsProvider).value ?? [];
+  final teachers = ref.watch(allTeachersProvider);
   final recordsAsync = ref.watch(studentAttendanceRecordsProvider);
   final records = recordsAsync.value ?? [];
 
@@ -229,12 +230,19 @@ final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
 
   return studentSubjects.map((sub) {
     final subRecords = grouped[sub.id] ?? [];
+    final teacherName = teachers
+        .where((t) => t.user.id == sub.teacherId || t.employeeId == sub.teacherId)
+        .firstOrNull
+        ?.user
+        .name;
 
     if (subRecords.isEmpty) {
       return SubjectAttendance(
         subjectId: sub.id,
         subjectName: sub.name,
         subjectCode: sub.code,
+        teacherName: teacherName,
+        credits: sub.credits,
         totalClasses: 0,
         present: 0,
         absent: 0,
@@ -254,6 +262,8 @@ final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
       subjectId: sub.id,
       subjectName: sub.name,
       subjectCode: sub.code,
+      teacherName: teacherName,
+      credits: sub.credits,
       totalClasses: subRecords.length,
       present: present,
       absent: absent,

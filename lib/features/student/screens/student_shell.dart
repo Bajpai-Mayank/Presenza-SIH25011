@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/core/enums/enums.dart';
+import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/features/student/screens/qr_scanner_screen.dart';
 
 class StudentShell extends ConsumerStatefulWidget {
@@ -557,75 +559,467 @@ class _AttendanceWarningBanner extends ConsumerWidget {
 class _StudentAttendanceTab extends ConsumerWidget {
   const _StudentAttendanceTab();
 
+  void _showSubjectDetail(BuildContext context, SubjectAttendance sa) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _SubjectDetailSheet(subjectAttendance: sa),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final list = ref.watch(subjectAttendanceProvider);
+    final overallAttendance = ref.watch(overallAttendanceProvider);
+    final totalClasses = list.fold(0, (sum, sa) => sum + sa.totalClasses);
+    final totalPresent = list.fold(0, (sum, sa) => sum + sa.present + sa.late);
+    final totalAbsent = list.fold(0, (sum, sa) => sum + sa.absent);
 
-    return ListView.separated(
+    if (list.isEmpty) {
+      return const EmptyState(
+        icon: Icons.calendar_today_outlined,
+        title: 'No Subjects Enrolled',
+        subtitle: 'Your enrolled subjects will appear here once your course and batch are assigned.',
+      );
+    }
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
-      itemCount: list.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final sa = list[index];
-        final canMiss = sa.classesCanMiss(75.0);
-        final needed = sa.classesNeededForThreshold(75.0);
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Attendance Summary Card
+          GlassCard(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                AttendanceRing(
+                  percentage: overallAttendance,
+                  size: 96,
+                  strokeWidth: 8,
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Academic Standing',
+                        style: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        overallAttendance >= 75.0
+                            ? 'Good Standing'
+                            : 'Attendance Alert',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: overallAttendance >= 75.0
+                                  ? AppColors.success
+                                  : AppColors.error,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Total Sessions: $totalClasses • Present: $totalPresent • Absent: $totalAbsent',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Minimum required attendance is 75%',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: AppColors.gray400,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
 
-        return GlassCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Enrolled Subjects Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          sa.subjectName,
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        Text(
-                          sa.subjectCode,
-                          style: Theme.of(context).textTheme.labelSmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    '${sa.percentage.toStringAsFixed(1)}%',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: sa.percentage >= 75 ? AppColors.white : AppColors.error,
-                        ),
-                  ),
-                ],
+              Text(
+                'Enrolled Subjects (${list.length})',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 12),
-              AttendanceProgressBar(percentage: sa.percentage),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Total Classes: ${sa.totalClasses} (P: ${sa.present} / A: ${sa.absent})',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if (sa.percentage >= 75.0)
-                    Text(
-                      'Can miss $canMiss more class(es)',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.success),
-                    )
-                  else
-                    Text(
-                      'Need $needed class(es) to pass',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.error),
+              Text(
+                'Tap for session history',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.gray400,
                     ),
-                ],
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 12),
+
+          // Subject Cards
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: list.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final sa = list[index];
+              final isAboveThreshold = sa.percentage >= 75.0 || sa.totalClasses == 0;
+
+              return GlassCard(
+                onTap: () => _showSubjectDetail(context, sa),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                sa.subjectName,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${sa.subjectCode}${sa.teacherName != null && sa.teacherName!.isNotEmpty ? ' • ${sa.teacherName}' : ''}${sa.credits != null ? ' • ${sa.credits} Credits' : ''}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.gray400,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              sa.totalClasses > 0
+                                  ? '${sa.percentage.toStringAsFixed(1)}%'
+                                  : 'N/A',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: isAboveThreshold
+                                        ? (sa.totalClasses > 0 ? AppColors.white : AppColors.gray400)
+                                        : AppColors.error,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            if (sa.totalClasses > 0)
+                              Text(
+                                '${sa.present + sa.late}/${sa.totalClasses} Attended',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    AttendanceProgressBar(percentage: sa.percentage),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            sa.getStatusMessage(threshold: 75.0),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: isAboveThreshold
+                                      ? (sa.totalClasses > 0 ? AppColors.success : AppColors.gray400)
+                                      : AppColors.error,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              'History',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.info,
+                                  ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                              size: 16,
+                              color: AppColors.info,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Detailed Session History Modal Sheet for a specific subject
+class _SubjectDetailSheet extends ConsumerWidget {
+  final SubjectAttendance subjectAttendance;
+
+  const _SubjectDetailSheet({required this.subjectAttendance});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recordsAsync = ref.watch(studentAttendanceRecordsProvider);
+    final allRecords = recordsAsync.value ?? [];
+    final subjectRecords = allRecords
+        .where((r) => r.subjectId == subjectAttendance.subjectId)
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        subjectAttendance.subjectName,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                Text(
+                  '${subjectAttendance.subjectCode} • ${subjectAttendance.teacherName ?? 'Assigned Faculty'} • Total Classes: ${subjectAttendance.totalClasses}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.gray400),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withAlpha(10),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Percentage', style: Theme.of(context).textTheme.labelSmall),
+                            Text(
+                              subjectAttendance.totalClasses > 0
+                                  ? '${subjectAttendance.percentage.toStringAsFixed(1)}%'
+                                  : 'N/A',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: subjectAttendance.percentage >= 75
+                                        ? AppColors.success
+                                        : AppColors.error,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withAlpha(10),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Present / Absent', style: Theme.of(context).textTheme.labelSmall),
+                            Text(
+                              '${subjectAttendance.present + subjectAttendance.late} P / ${subjectAttendance.absent} A',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withAlpha(10),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Requirement', style: Theme.of(context).textTheme.labelSmall),
+                            Text(
+                              subjectAttendance.getStatusMessage(threshold: 75.0),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color: subjectAttendance.percentage >= 75
+                                        ? AppColors.success
+                                        : AppColors.warning,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+
+          // Session Timeline
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: Text(
+              'Individual Class Sessions (${subjectRecords.length})',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
+          Expanded(
+            child: subjectRecords.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24.0),
+                      child: Text(
+                        'No class attendance records logged yet for this subject.\nScan your teacher\'s QR code in class to record attendance.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.gray400),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: subjectRecords.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final record = subjectRecords[index];
+                      final isPresent = record.status.name == 'present' || record.status.name == 'late';
+
+                      return GlassCard(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: (isPresent ? AppColors.success : AppColors.error).withAlpha(25),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                isPresent ? Icons.check_circle_outline : Icons.cancel_outlined,
+                                color: isPresent ? AppColors.success : AppColors.error,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        DateFormat('EEE, dd MMM yyyy').format(record.timestamp),
+                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                      StatusBadge(
+                                        label: record.status.name.toUpperCase(),
+                                        color: isPresent ? AppColors.success : AppColors.error,
+                                        small: true,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Time: ${DateFormat('hh:mm a').format(record.timestamp)}${record.room != null && record.room!.isNotEmpty ? ' • ${record.room}' : ''}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        record.verificationMethod == VerificationMethod.qr
+                                            ? Icons.qr_code
+                                            : Icons.pin_drop_outlined,
+                                        size: 12,
+                                        color: AppColors.gray400,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        record.verificationMethod.displayName,
+                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                              color: AppColors.gray400,
+                                            ),
+                                      ),
+                                      if (record.locationVerified) ...[
+                                        const SizedBox(width: 8),
+                                        const Icon(
+                                          Icons.verified_outlined,
+                                          size: 12,
+                                          color: AppColors.success,
+                                        ),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          'GPS Verified',
+                                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: AppColors.success,
+                                              ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
