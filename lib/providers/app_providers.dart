@@ -350,6 +350,12 @@ class TeacherProfileNotifier extends StateNotifier<TeacherModel?> {
       debugPrint('TeacherProfileNotifier: Firestore getTeacherProfile failed: $e');
     }
   }
+
+  Future<void> refresh() async {
+    if (_user != null) {
+      await _load(_user.id);
+    }
+  }
 }
 
 /// Teacher's subjects — Firestore-backed.
@@ -359,7 +365,10 @@ final teacherSubjectsProvider = Provider<List<SubjectModel>>((ref) {
 
   final allSubjects = ref.watch(subjectsProvider).valueOrNull ?? [];
   return allSubjects
-      .where((s) => teacher.subjectIds.contains(s.id))
+      .where((s) =>
+          teacher.subjectIds.contains(s.id) ||
+          s.teacherId == teacher.user.id ||
+          (s.teacherId.isNotEmpty && s.teacherId == teacher.employeeId))
       .toList();
 });
 
