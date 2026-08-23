@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/core/services/security_service.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/models/attendance_model.dart';
@@ -523,6 +524,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
     // Save to Firestore
     _firestoreService.createAttendanceSession(session);
     ref.read(activeAttendanceSessionProvider.notifier).startSession(session);
+    SecurityService.enableScreenshotProtection();
 
     _secondsRemaining = duration * 60;
     _sessionTimer?.cancel();
@@ -541,6 +543,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
     _sessionTimer?.cancel();
     _firestoreService.closeAttendanceSession(sessionId);
     ref.read(activeAttendanceSessionProvider.notifier).closeSession();
+    SecurityService.disableScreenshotProtection();
     setState(() {
       _isGenerating = false;
       _secondsRemaining = 0;
@@ -552,6 +555,7 @@ class _TeacherQRGeneratorTabState extends ConsumerState<_TeacherQRGeneratorTab> 
 
   @override
   void dispose() {
+    SecurityService.disableScreenshotProtection();
     _sessionTimer?.cancel();
     _durationController.dispose();
     _roomController.dispose();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/core/services/security_service.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/data/services/location_service.dart';
@@ -29,6 +30,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   @override
   void initState() {
     super.initState();
+    SecurityService.enableScreenshotProtection();
     _cameraController = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
@@ -37,6 +39,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
   @override
   void dispose() {
+    SecurityService.disableScreenshotProtection();
     _cameraController?.dispose();
     super.dispose();
   }
