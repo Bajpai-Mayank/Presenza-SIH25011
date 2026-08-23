@@ -1,94 +1,116 @@
-# Presenza v2 — Performance, Android Build & SIH25011 Enhancement Implementation Plan
+# Implementation Plan — Presenza V2 Complete UI & Frontend Redesign
 
-**Branch**: `feature/presenza-v2`  
-**Problem Statement**: SIH25011 — Smart Curriculum Activity & Attendance App  
-**Status**: Ready for Review & Execution  
+Presenza is an SIH25011 Smart Curriculum Activity & Attendance Management platform. This plan details the transition from the legacy prototype into **Presenza V2**: a modern, mobile-first academic platform featuring an original Navy & Teal design system, full Light/Dark/System theme support, modular architecture, responsive layouts (mobile & tablet/web), and interactive attendance and campus activity experiences.
 
 ---
 
-## Executive Summary
+## GPS & Geolocation Verification Architecture
 
-This plan outlines the architecture and tasks required to bring **Presenza** to production-grade quality for the SIH25011 problem statement. We are working strictly on the dedicated branch `feature/presenza-v2` without modifying `main`/production directly.
-
-The plan addresses:
-1. **Android APK Release Build**: Tooling compatibility upgrades (Gradle wrapper, Android Gradle Plugin, Kotlin DSL) and clean release APK generation.
-2. **Startup Lag Elimination & Fast Web Preloader**: Branded dark-mode splash/loader in `web/index.html`, deferred/lazy initialization of expensive services, and elimination of unnecessary re-renders.
-3. **Firestore & State Optimizations**: Eliminating excessive collections fetches, scoping streams to active queries, adding robust error/empty/retry states.
-4. **Attendance System Upgrades**: Rich teacher session context (Class, Subject, Time, Room, Teacher, Method, Enrolled, Present, Absent, Pending, Rate %) and dynamic "Other / Enter subject manually" support.
-5. **Academic Insights & Milestones**: Personal attendance health index, subject-wise strengths vs priority alerts, what-if simulator, and 100% Firestore-backed milestone badges.
-6. **Circulars & Activity Hub**: Categorized dual-tier feed distinguishing verified official notices from student-proposed hackathons/workshops with moderation.
-7. **Platform Security & Android `FLAG_SECURE`**: Native Kotlin `MethodChannel` preventing screenshot and screen recording abuse on sensitive views, with platform-safe fallbacks.
-
----
-
-## User Review Required
-
-> [!IMPORTANT]
-> **Android Build Tooling**: We are upgrading the Kotlin Gradle plugin version to `2.1.10` / `2.2.20` and Gradle wrapper to `8.9` / `8.11.1` in the Kotlin DSL configuration (`android/settings.gradle.kts` and `android/gradle/wrapper/gradle-wrapper.properties`).
-> 
-> **Web Screenshot Protection Disclaimer**: Web browsers do not provide hardware-level screenshot prevention APIs equivalent to Android `FLAG_SECURE`. The app implements native Android `FLAG_SECURE` and handles web/desktop environments with safe non-blocking fallbacks.
+### How GPS Verification Works in Presenza V2:
+1. **Conditional Activation**: GPS is only invoked when an attendance session or institution policy requires `locationRequired == true`. On standard sessions or when opening the app, no background location tracking or battery drain occurs.
+2. **Permission Workflow**:
+   - `LocationService.verifyLocation()` verifies `isLocationServiceEnabled()`.
+   - Checks and requests `checkPermission()` / `requestPermission()` (`ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`).
+   - If permanently denied, guides the student with a clear action sheet.
+3. **High-Accuracy Geodesic Distance**:
+   - Uses `Geolocator.getCurrentPosition(locationSettings: LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 10)))`.
+   - Computes distance in meters via the WGS84 ellipsoidal model with `Geolocator.distanceBetween(studentLat, studentLng, sessionCampusLat, sessionCampusLng)`.
+   - If `distance <= allowedRadiusMeters` (configured per session/policy, default ~100m), verification succeeds and records coordinates atomically in Firestore.
+   - If outside radius, student receives an immediate, human-readable notification: *"You are 240m away from class (maximum allowed: 100m)"*.
 
 ---
 
-## Proposed Changes by Module
+## Design System & Theme Tokens
 
-### 1. Android Build Tooling & Release APK
-- [android/gradle/wrapper/gradle-wrapper.properties](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/gradle/wrapper/gradle-wrapper.properties): Gradle 8.9 / 8.11.1 wrapper verification.
-- [android/settings.gradle.kts](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/settings.gradle.kts): Configure AGP `8.7.3` / `8.9.0` and Kotlin `2.1.10` / `2.2.20`.
-- [android/app/build.gradle.kts](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/app/build.gradle.kts): Configure JVM 17 target compatibility.
-- **Verification**: Run `flutter build apk --release` and verify `build/app/outputs/flutter-apk/app-release.apk`.
-
-### 2. Startup Performance & Web Fast Loading Screen
-- [web/index.html](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/web/index.html): Add styled CSS dark-theme splash screen (`#loading-container`) with Presenza branding and animated pulse spinner so users never see a blank white screen during bundle loading.
-- [lib/main.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/main.dart): Ensure Firebase initialization is efficient, with graceful fallback loaders.
-- **Verification**: Run `flutter build web --release` and inspect web load sequence.
-
-### 3. Teacher Subject Management & Flexible Session Attendance Dashboard
-- [lib/features/teacher/screens/teacher_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/teacher/screens/teacher_shell.dart):
-  - Add "+ Enter Subject Manually / Other" option inside the subject selection dropdown and session creator modal.
-  - Live session dashboard displaying:
-    - Subject Name & Code
-    - Class / Batch
-    - Date and time
-    - Room / Location
-    - Teacher name
-    - Attendance Method: QR Code / GPS Geofenced / Manual
-    - 3-Stat Live Grid: Present Count, Absent Count, Pending Count, Live Attendance %
-    - Live verified student attendee roster with timestamps and verification mode badges.
-
-### 4. Student Academic Insights & Milestone Badges
-- [lib/features/student/screens/student_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/student/screens/student_shell.dart):
-  - Attendance Health index with streak count.
-  - Subject performance split: Strong Standing vs Priority Attention (with exact classes needed).
-  - Target attendance simulator (1-15 classes simulation).
-  - 4 Milestone badges (75% Benchmark, Perfect Record, 3-Day Streak, Zero Absences) tied to live data.
-
-### 5. Circulars & Academic Activity Hub
-- [lib/data/models/app_models.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/data/models/app_models.dart): Dual-tier metadata (`isOfficial`, `authorRole`, `eventType`, `location`, `organizer`).
-- [lib/features/student/screens/student_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/student/screens/student_shell.dart) & [lib/features/teacher/screens/teacher_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/teacher/screens/teacher_shell.dart):
-  - Filter chips (`All`, `Official Notices`, `Events & Hackathons`, `Clubs & Meetups`).
-  - Peer activity sharing modal for students and verified announcement creator for faculty.
-
-### 6. Android Platform Screenshot Protection (`FLAG_SECURE`)
-- [android/app/src/main/kotlin/com/example/presenza/MainActivity.kt](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/android/app/src/main/kotlin/com/example/presenza/MainActivity.kt): Native Kotlin `MethodChannel` (`com.example.presenza/security`).
-- [lib/core/services/security_service.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/core/services/security_service.dart): Safe Dart wrapper with `enableScreenshotProtection()` and `disableScreenshotProtection()`.
-- [lib/features/student/screens/qr_scanner_screen.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/student/screens/qr_scanner_screen.dart) & [lib/features/teacher/screens/teacher_shell.dart](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/lib/features/teacher/screens/teacher_shell.dart): Protect active QR code displays and scanner.
-
-### 7. Cloud Firestore Hardened Security Rules
-- [firestore.rules](file:///c:/Users/Hp/AndroidStudioProjects/Presenza/presenza/firestore.rules): Role-based access control, restricting attendance creation to faculty and check-ins to authenticated students.
+- **Academic Navy & Teal Palette**:
+  - Primary Navy: `#0F172A`, `#1E293B`, `#1E3A8A`, Indigo `#4F46E5`, `#6366F1`
+  - Secondary Teal/Mint: `#0D9488`, `#14B8A6`, `#2DD4BF`
+  - Status Indicators: Present `#10B981`, Absent/Error `#EF4444`, Warning `#F59E0B`, Info `#0284C7`
+- **Light Theme**: Warm neutral background (`#F8FAFC`), crisp white cards (`#FFFFFF`) with subtle slate borders (`#E2E8F0`), deep navy typography (`#0F172A`).
+- **Dark Theme**: Deep navy/slate background (`#0B1120`), slate cards (`#1E293B`) with visible separation (`#334155`), soft accents (`#818CF8`, `#2DD4BF`). Never pure black.
+- **Theme Options**: System Default, Light Mode, Dark Mode — persisted locally in `SharedPreferences`.
 
 ---
 
-## Verification Plan
+## Proposed Architectural & Visual Directory Layout
 
-### Automated Tests
-- Run `flutter test` (12 unit and regression tests covering attendance math, models, security services, and session lifecycle).
-- Run `dart analyze` to ensure zero compilation warnings or errors.
-
-### Build Verification
-- Run `flutter build apk --release` to verify Android release APK generation.
-- Run `flutter build web --release` to verify Web production release bundle.
-
-### Manual / Browser Verification
-- Test Student flow at `http://127.0.0.1:8080`: Dashboard, Attendance Drilldown Sheet, Activities Hub, Academic Insights.
-- Test Teacher flow at `http://127.0.0.1:8080`: Manual Subject Creation, QR Session Generator, Live Attendance Monitor.
+```
+lib/
+├── config/
+│   ├── routes.dart                          [Protected role-based routing & clean shell navigation]
+│   └── theme/
+│       ├── app_colors.dart                  [Academic Navy & Teal Presenza V2 palette for Light & Dark]
+│       ├── app_theme.dart                   [Complete M3 typography, card, input, button, nav themes]
+│       └── glass_theme.dart                 [Lightweight border & card styling for 60fps performance]
+├── core/
+│   ├── enums/
+│   │   ├── activity_category.dart           [Categories for campus activities & circulars]
+│   │   ├── attendance_status.dart           [Present, Absent, Late, Excused]
+│   │   ├── enums.dart                       [Circular, Event, Priority, Face enums]
+│   │   └── user_role.dart                   [Student, Teacher, Admin]
+│   └── services/
+│       └── security_service.dart            [FLAG_SECURE screenshot protection]
+├── data/
+│   ├── models/
+│   │   ├── activity_model.dart              [Interactive campus activity post, comments & reactions]
+│   │   ├── app_models.dart                  [Circulars, events, notifications, achievements]
+│   │   ├── attendance_model.dart            [Math calculators, streak calculations, session metadata]
+│   │   ├── auth_state.dart                  [Authentication state holder]
+│   │   ├── course_model.dart                [Courses, batches, subjects]
+│   │   └── user_model.dart                  [User, student, teacher models with bio/phone/avatar]
+│   └── services/
+│       ├── auth_service.dart                [Firebase Auth service]
+│       ├── firestore_service.dart           [Activity CRUD, reactions, comments, profile updates, manual subjects]
+│       └── location_service.dart            [GPS verification & geodesic distance calculation]
+├── providers/
+│   └── app_providers.dart                   [ThemeModeNotifier (System/Light/Dark), Activity stream providers, profile actions]
+├── shared/
+│   └── widgets/
+│       ├── app_buttons.dart                 [Primary, Secondary, Outlined & Icon buttons with loading state]
+│       ├── app_card.dart                    [Sleek, high-performance card with subtle light/dark borders]
+│       ├── app_text_field.dart              [Clean form input with icons, visibility toggle, error display]
+│       ├── attendance_progress.dart         [Circular & linear attendance visualizers with threshold colors]
+│       ├── empty_state.dart                 [Meaningful empty state illustrations with action buttons]
+│       ├── error_state.dart                 [User-friendly error message with Retry callback]
+│       ├── filter_bottom_sheet.dart         [Filter modal for category, date range, and status]
+│       ├── loading_shimmer.dart             [Shimmer skeleton placeholders for cards & lists]
+│       ├── responsive_layout.dart           [Mobile bottom navigation + Tablet/Desktop navigation rail]
+│       ├── shared_widgets.dart              [Export unified design system components]
+│       └── status_badge.dart                [Color-coded badges for status, roles, categories, priorities]
+└── features/
+    ├── auth/
+    │   └── screens/
+    │       ├── forgot_password_screen.dart  [Modern email reset card with confirmation]
+    │       ├── login_screen.dart            [Presenza V2 branding, clean welcome, 1-click test roles]
+    │       ├── no_profile_screen.dart       [Self-healing missing profile resolver]
+    │       └── register_screen.dart         [Role-based registration with department/course selector]
+    ├── student/
+    │   ├── screens/
+    │   │   ├── qr_scanner_screen.dart       [Focused camera scanner with instant transaction feedback]
+    │   │   └── student_shell.dart           [Responsive shell with notifications & theme switch]
+    │   └── tabs/
+    │       ├── student_activities_tab.dart  [Interactive campus hub (Official, Student, Saved, Reactions, Comments)]
+    │       ├── student_attendance_tab.dart  [Subject attendance breakdown, status filters, miss calculator]
+    │       ├── student_home_tab.dart        [Welcome header, attendance summary ring, schedule, quick actions, feed]
+    │       ├── student_insights_tab.dart    [Subject distribution, class leaderboard, attendance risk tracker]
+    │       └── student_profile_tab.dart     [Student ID card, bio editor, achievements showcase, settings & theme]
+    ├── teacher/
+    │   ├── screens/
+    │   │   └── teacher_shell.dart           [Responsive shell with role navigation]
+    │   └── tabs/
+    │       ├── teacher_activities_tab.dart  [Create official circulars & moderate pending student posts]
+    │       ├── teacher_attendance_tab.dart  [Start session with custom/predefined subject, live QR generator, history]
+    │       ├── teacher_dashboard_tab.dart   [Greeting, session metrics, today's schedule, pending approvals]
+    │       ├── teacher_profile_tab.dart     [Faculty profile, assigned classes, theme & system settings]
+    │       └── teacher_students_tab.dart    [Searchable student directory by course/batch with attendance breakdown]
+    └── admin/
+        ├── screens/
+        │   └── admin_shell.dart             [Responsive admin shell]
+        └── tabs/
+            ├── admin_attendance_tab.dart    [Institutional attendance analytics & policy editor]
+            ├── admin_audit_logs_tab.dart    [Hardware & action security audit log viewer]
+            ├── admin_circulars_tab.dart     [Institute broadcast announcements & circular publisher]
+            ├── admin_overview_tab.dart      [Real-time institution KPIs, active sessions, quick actions]
+            ├── admin_profile_tab.dart       [Admin profile, system diagnostics, theme options, logout]
+            └── admin_users_tab.dart         [User directory, role promotion, add/edit faculty and students]
+```

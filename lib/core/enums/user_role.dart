@@ -15,7 +15,8 @@ enum UserRole {
     }
   }
 
-  static UserRole fromString(String value) {
+  static UserRole fromString(String? value) {
+    if (value == null) return UserRole.student;
     return UserRole.values.firstWhere(
       (role) => role.name == value.toLowerCase(),
       orElse: () => UserRole.student,

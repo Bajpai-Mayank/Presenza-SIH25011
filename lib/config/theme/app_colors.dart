@@ -1,66 +1,106 @@
 import 'package:flutter/material.dart';
 
-/// Premium monochrome color palette for Smart Circular.
+/// Presenza V2 Academic Design System Color Palette.
 ///
-/// Primary identity: black + white + glassmorphism.
-/// Status colors used sparingly for semantic meaning only.
+/// Brand identity:
+/// - Academic Navy / Indigo (Primary)
+/// - Teal / Mint (Secondary & Attendance Positive)
+/// - High accessibility contrast for Light and Dark modes
 class AppColors {
   AppColors._();
 
-  // ── Pure Monochrome ──────────────────────────────────────────────
-  static const Color black = Color(0xFF000000);
-  static const Color white = Color(0xFFFFFFFF);
+  // ── Brand Identity ────────────────────────────────────────────────
+  static const Color primary = Color(0xFF4F46E5);       // Indigo 600
+  static const Color primaryDark = Color(0xFF818CF8);   // Indigo 400 (for Dark mode)
+  static const Color primaryNavy = Color(0xFF1E3A8A);   // Academic Navy 900
+  static const Color primaryDeep = Color(0xFF312E81);   // Indigo 900
+  static const Color primaryContainer = Color(0xFFEEF2FF);
+  static const Color primaryContainerDark = Color(0xFF1E1B4B);
 
-  // ── Dark Surfaces ────────────────────────────────────────────────
-  static const Color backgroundDark = Color(0xFF0A0A0A);
-  static const Color surfaceDark = Color(0xFF121212);
-  static const Color cardDark = Color(0xFF1A1A1A);
-  static const Color elevatedDark = Color(0xFF222222);
+  static const Color secondary = Color(0xFF0D9488);     // Teal 600
+  static const Color secondaryDark = Color(0xFF2DD4BF); // Teal 400 (for Dark mode)
+  static const Color secondaryMint = Color(0xFF14B8A6); // Mint
+  static const Color secondaryContainer = Color(0xFFCCFBF1);
+  static const Color secondaryContainerDark = Color(0xFF134E4A);
 
   // ── Light Surfaces ───────────────────────────────────────────────
-  static const Color backgroundLight = Color(0xFFF5F5F7);
-  static const Color surfaceLight = Color(0xFFFFFFFF);
-  static const Color cardLight = Color(0xFFF0F0F2);
-  static const Color elevatedLight = Color(0xFFE8E8EA);
+  static const Color backgroundLight = Color(0xFFF8FAFC); // Slate 50
+  static const Color surfaceLight = Color(0xFFFFFFFF);    // Pure White
+  static const Color cardLight = Color(0xFFFFFFFF);       // White card
+  static const Color cardBorderLight = Color(0xFFE2E8F0); // Slate 200
+  static const Color elevatedLight = Color(0xFFF1F5F9);   // Slate 100
 
-  // ── Grays ────────────────────────────────────────────────────────
-  static const Color gray50 = Color(0xFFFAFAFA);
-  static const Color gray100 = Color(0xFFF5F5F5);
-  static const Color gray200 = Color(0xFFE5E5E5);
-  static const Color gray300 = Color(0xFFD4D4D4);
-  static const Color gray400 = Color(0xFFA3A3A3);
-  static const Color gray500 = Color(0xFF737373);
-  static const Color gray600 = Color(0xFF525252);
-  static const Color gray700 = Color(0xFF404040);
-  static const Color gray800 = Color(0xFF262626);
-  static const Color gray900 = Color(0xFF171717);
+  // ── Dark Surfaces (Deep Navy / Charcoal, Never Pure Black) ───────
+  static const Color backgroundDark = Color(0xFF0B1120); // Deep Navy Midnight
+  static const Color surfaceDark = Color(0xFF111827);    // Dark Charcoal / Slate 900
+  static const Color cardDark = Color(0xFF1E293B);       // Slate 800
+  static const Color cardBorderDark = Color(0xFF334155); // Slate 700
+  static const Color elevatedDark = Color(0xFF243248);   // Elevated Slate
 
-  // ── Glass Overlays ───────────────────────────────────────────────
-  static Color glassDark = white.withAlpha(13);       // ~5%
-  static Color glassDarkBorder = white.withAlpha(25);  // ~10%
-  static Color glassLight = black.withAlpha(8);        // ~3%
-  static Color glassLightBorder = black.withAlpha(20); // ~8%
+  // ── Typography Colors ─────────────────────────────────────────────
+  static const Color textPrimaryLight = Color(0xFF0F172A);   // Deep Navy / Slate 900
+  static const Color textSecondaryLight = Color(0xFF475569); // Slate 600
+  static const Color textMutedLight = Color(0xFF94A3B8);     // Slate 400
 
-  // ── Status Colors (sparingly used) ───────────────────────────────
-  static const Color success = Color(0xFF22C55E);      // Green — present
-  static const Color error = Color(0xFFEF4444);         // Red — absent/error
-  static const Color warning = Color(0xFFF59E0B);       // Amber — warning
-  static const Color info = Color(0xFF3B82F6);          // Blue — information
+  static const Color textPrimaryDark = Color(0xFFF8FAFC);   // Slate 50
+  static const Color textSecondaryDark = Color(0xFF94A3B8); // Slate 400
+  static const Color textMutedDark = Color(0xFF64748B);     // Slate 500
 
-  // Muted status variants for backgrounds
-  static const Color successMuted = Color(0xFF0A2E1A);
-  static const Color errorMuted = Color(0xFF2E0A0A);
-  static const Color warningMuted = Color(0xFF2E2A0A);
-  static const Color infoMuted = Color(0xFF0A1A2E);
+  // ── Monochromes & Slates ─────────────────────────────────────────
+  static const Color white = Color(0xFFFFFFFF);
+  static const Color black = Color(0xFF000000);
+  static const Color slate50 = Color(0xFFF8FAFC);
+  static const Color slate100 = Color(0xFFF1F5F9);
+  static const Color slate200 = Color(0xFFE2E8F0);
+  static const Color slate300 = Color(0xFFCBD5E1);
+  static const Color slate400 = Color(0xFF94A3B8);
+  static const Color slate500 = Color(0xFF64748B);
+  static const Color slate600 = Color(0xFF475569);
+  static const Color slate700 = Color(0xFF334155);
+  static const Color slate800 = Color(0xFF1E293B);
+  static const Color slate900 = Color(0xFF0F172A);
+  static const Color slate950 = Color(0xFF020617);
 
-  // Light mode muted variants
-  static const Color successMutedLight = Color(0xFFDCFCE7);
+  // Backward compatibility alias
+  static const Color gray50 = slate50;
+  static const Color gray100 = slate100;
+  static const Color gray200 = slate200;
+  static const Color gray300 = slate300;
+  static const Color gray400 = slate400;
+  static const Color gray500 = slate500;
+  static const Color gray600 = slate600;
+  static const Color gray700 = slate700;
+  static const Color gray800 = slate800;
+  static const Color gray900 = slate900;
+
+  // ── Status Colors ────────────────────────────────────────────────
+  static const Color success = Color(0xFF10B981);      // Emerald 500 — Present / Approved
+  static const Color error = Color(0xFFEF4444);        // Red 500 — Absent / Urgent / Reject
+  static const Color warning = Color(0xFFF59E0B);      // Amber 500 — Late / Pending
+  static const Color info = Color(0xFF0284C7);         // Sky 600 — Info / Excused
+
+  // Muted status backgrounds for Dark Mode
+  static const Color successMuted = Color(0xFF064E3B);
+  static const Color errorMuted = Color(0xFF7F1D1D);
+  static const Color warningMuted = Color(0xFF78350F);
+  static const Color infoMuted = Color(0xFF0C4A6E);
+
+  // Muted status backgrounds for Light Mode
+  static const Color successMutedLight = Color(0xFFD1FAE5);
   static const Color errorMutedLight = Color(0xFFFEE2E2);
   static const Color warningMutedLight = Color(0xFFFEF3C7);
-  static const Color infoMutedLight = Color(0xFFDBEAFE);
+  static const Color infoMutedLight = Color(0xFFE0F2FE);
 
-  // ── Attendance Ring Colors ───────────────────────────────────────
-  static const Color ringBackground = Color(0xFF2A2A2A);
-  static const Color ringForeground = white;
-  static const Color ringBackgroundLight = Color(0xFFE0E0E0);
+  // ── Attendance Visualizer Colors ─────────────────────────────────
+  static const Color ringBackground = Color(0xFF1E293B);
+  static const Color ringBackgroundLight = Color(0xFFE2E8F0);
+  static const Color ringForeground = Color(0xFF10B981);
+
+  // ── Lightweight Border & Overlay Accents ──────────────────────────
+  static Color overlayDark = Colors.white.withAlpha(12);
+  static Color overlayLight = Colors.black.withAlpha(6);
+  static Color glassDark = Color(0xFF1E293B).withAlpha(200);
+  static Color glassDarkBorder = Color(0xFF334155);
+  static Color glassLight = Colors.white.withAlpha(240);
+  static Color glassLightBorder = Color(0xFFE2E8F0);
 }

@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:presenza/config/theme/app_colors.dart';
-import 'package:presenza/config/theme/glass_theme.dart';
+import 'app_card.dart';
+import 'app_buttons.dart';
+import 'app_text_field.dart';
 
-/// A translucent, blurred glass card — the primary container widget.
+export 'app_card.dart';
+export 'app_buttons.dart';
+export 'app_text_field.dart';
+export 'attendance_progress.dart';
+export 'status_badge.dart';
+export 'loading_shimmer.dart';
+export 'empty_state.dart';
+export 'error_state.dart';
+export 'responsive_layout.dart';
+export 'filter_bottom_sheet.dart';
+
+/// Legacy GlassCard adapter: renders a sleek AppCard with Presenza V2 theme.
 class GlassCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -27,47 +40,20 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final glass = GlassTheme.of(context);
-    final radius = borderRadius ?? glass.borderRadius;
-
-    Widget card = ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: glass.blurFilter,
-        child: Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: glass.fillColor,
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(
-              color: borderColor ?? glass.borderColor,
-              width: glass.borderWidth,
-            ),
-            boxShadow: glass.shadows,
-          ),
-          padding: padding ?? const EdgeInsets.all(20),
-          child: child,
-        ),
-      ),
+    return AppCard(
+      padding: padding,
+      margin: margin,
+      borderRadius: borderRadius ?? 16,
+      onTap: onTap,
+      width: width,
+      height: height,
+      borderColor: borderColor,
+      child: child,
     );
-
-    if (onTap != null) {
-      card = GestureDetector(
-        onTap: onTap,
-        child: card,
-      );
-    }
-
-    if (margin != null) {
-      card = Padding(padding: margin!, child: card);
-    }
-
-    return card;
   }
 }
 
-/// A glass-styled elevated button.
+/// Legacy GlassButton adapter: renders an AppButton with Presenza V2 theme.
 class GlassButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;
@@ -86,58 +72,17 @@ class GlassButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (filled) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          child: isLoading
-              ? SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: isDark ? AppColors.black : AppColors.white,
-                  ),
-                )
-              : Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (icon != null) ...[
-                      Icon(icon, size: 20),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(label),
-                  ],
-                ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: isLoading ? null : onPressed,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 20),
-              const SizedBox(width: 8),
-            ],
-            Text(label),
-          ],
-        ),
-      ),
+    return AppButton(
+      label: label,
+      onPressed: onPressed,
+      icon: icon,
+      isLoading: isLoading,
+      variant: filled ? AppButtonVariant.primary : AppButtonVariant.outlined,
     );
   }
 }
 
-/// A glass-styled text field.
+/// Legacy GlassTextField adapter: renders an AppTextField with Presenza V2 theme.
 class GlassTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String? labelText;
@@ -164,256 +109,29 @@ class GlassTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
+    return AppTextField(
       controller: controller,
+      labelText: labelText,
+      hintText: hintText,
+      prefixIcon: prefixIcon,
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,
       maxLines: maxLines,
-      style: Theme.of(context).textTheme.bodyLarge,
-      decoration: InputDecoration(
-        labelText: labelText,
-        hintText: hintText,
-        prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
-        suffixIcon: suffixIcon,
-      ),
+      suffixIcon: suffixIcon,
     );
   }
 }
 
-/// A circular attendance indicator with percentage.
-class AttendanceRing extends StatelessWidget {
-  final double percentage;
-  final double size;
-  final double strokeWidth;
-  final Color? foregroundColor;
-  final Color? backgroundColor;
-  final TextStyle? textStyle;
-
-  const AttendanceRing({
-    super.key,
-    required this.percentage,
-    this.size = 140,
-    this.strokeWidth = 10,
-    this.foregroundColor,
-    this.backgroundColor,
-    this.textStyle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fg = foregroundColor ?? _getStatusColor(percentage);
-    final bg = backgroundColor ??
-        (isDark ? AppColors.ringBackground : AppColors.ringBackgroundLight);
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox(
-            width: size,
-            height: size,
-            child: CircularProgressIndicator(
-              value: (percentage / 100).clamp(0.0, 1.0),
-              strokeWidth: strokeWidth,
-              backgroundColor: bg,
-              color: fg,
-              strokeCap: StrokeCap.round,
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${percentage.toStringAsFixed(0)}%',
-                style: textStyle ??
-                    Theme.of(context).textTheme.displaySmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-              ),
-              Text(
-                'Attendance',
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _getStatusColor(double pct) {
-    if (pct >= 90) return AppColors.success;
-    if (pct >= 75) return AppColors.white;
-    if (pct >= 60) return AppColors.warning;
-    return AppColors.error;
-  }
-}
-
-/// Linear attendance progress bar for subjects.
-class AttendanceProgressBar extends StatelessWidget {
-  final double percentage;
-  final double height;
-  final double threshold;
-
-  const AttendanceProgressBar({
-    super.key,
-    required this.percentage,
-    this.height = 6,
-    this.threshold = 75,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.gray800 : AppColors.gray200;
-    final fg = percentage >= threshold
-        ? (percentage >= 90 ? AppColors.success : AppColors.white)
-        : (percentage >= 60 ? AppColors.warning : AppColors.error);
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(height / 2),
-      child: SizedBox(
-        height: height,
-        child: LinearProgressIndicator(
-          value: (percentage / 100).clamp(0.0, 1.0),
-          backgroundColor: bg,
-          color: fg,
-        ),
-      ),
-    );
-  }
-}
-
-/// Status badge chip.
-class StatusBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool small;
-
-  const StatusBadge({
-    super.key,
-    required this.label,
-    required this.color,
-    this.small = false,
-  });
-
-  factory StatusBadge.present({bool small = false}) =>
-      StatusBadge(label: 'Present', color: AppColors.success, small: small);
-  factory StatusBadge.absent({bool small = false}) =>
-      StatusBadge(label: 'Absent', color: AppColors.error, small: small);
-  factory StatusBadge.late({bool small = false}) =>
-      StatusBadge(label: 'Late', color: AppColors.warning, small: small);
-  factory StatusBadge.excused({bool small = false}) =>
-      StatusBadge(label: 'Excused', color: AppColors.info, small: small);
-  factory StatusBadge.urgent({bool small = false}) =>
-      StatusBadge(label: 'Urgent', color: AppColors.error, small: small);
-  factory StatusBadge.important({bool small = false}) =>
-      StatusBadge(label: 'Important', color: AppColors.warning, small: small);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: small ? 6 : 10,
-        vertical: small ? 2 : 4,
-      ),
-      decoration: BoxDecoration(
-        color: color.withAlpha(30),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withAlpha(80)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: small ? 10 : 12,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-/// Empty state placeholder.
-class EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-
-  const EmptyState({
-    super.key,
-    required this.icon,
-    required this.title,
-    this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 64, color: AppColors.gray600),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                subtitle!,
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Shimmer loading skeleton.
-class SkeletonLoader extends StatelessWidget {
-  final double width;
-  final double height;
-  final double borderRadius;
-
-  const SkeletonLoader({
-    super.key,
-    this.width = double.infinity,
-    required this.height,
-    this.borderRadius = 12,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.gray800 : AppColors.gray200,
-        borderRadius: BorderRadius.circular(borderRadius),
-      ),
-    );
-  }
-}
-
-/// Glass-themed stat card for dashboards.
+/// StatCard for dashboard metrics.
 class StatCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
   final Color? iconColor;
+  final String? trend;
+  final bool isPositiveTrend;
+  final VoidCallback? onTap;
 
   const StatCard({
     super.key,
@@ -421,38 +139,94 @@ class StatCard extends StatelessWidget {
     required this.value,
     required this.icon,
     this.iconColor,
+    this.trend,
+    this.isPositiveTrend = true,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = iconColor ?? (isDark ? AppColors.primaryDark : AppColors.primary);
+
+    return AppCard(
+      onTap: onTap,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 24, color: iconColor ?? AppColors.gray400),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withAlpha(isDark ? 25 : 15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: color),
+              ),
+              if (trend != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: (isPositiveTrend ? AppColors.success : AppColors.error).withAlpha(20),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    trend!,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isPositiveTrend ? AppColors.success : AppColors.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 12),
           Text(
             value,
-            style: Theme.of(context).textTheme.headlineMedium,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
           ),
           const SizedBox(height: 4),
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
         ],
       ),
     );
   }
 }
 
-/// Simple centered loading state for glassmorphic layouts.
+/// Simple centered loading state.
 class LoadingState extends StatelessWidget {
-  const LoadingState({super.key});
+  final String? message;
+  const LoadingState({super.key, this.message});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(color: AppColors.white),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          if (message != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              message!,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

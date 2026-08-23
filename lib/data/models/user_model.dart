@@ -1,4 +1,26 @@
+import 'package:flutter/material.dart';
 import 'package:presenza/core/enums/user_role.dart';
+
+/// Milestone / Achievement badge for students & faculty.
+class AchievementModel {
+  final String id;
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final bool isUnlocked;
+  final DateTime? unlockedAt;
+
+  const AchievementModel({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+    this.isUnlocked = false,
+    this.unlockedAt,
+  });
+}
 
 /// Core user model shared across all roles.
 class UserModel {
@@ -8,6 +30,9 @@ class UserModel {
   final UserRole role;
   final String? avatarUrl;
   final String? phone;
+  final String? bio;
+  final String? institution;
+  final String? department;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -18,19 +43,29 @@ class UserModel {
     required this.role,
     this.avatarUrl,
     this.phone,
+    this.bio,
+    this.institution,
+    this.department,
     required this.createdAt,
     required this.updatedAt,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
-        id: json['id'] as String,
-        email: json['email'] as String,
-        name: json['name'] as String,
-        role: UserRole.fromString(json['role'] as String),
+        id: json['id'] as String? ?? '',
+        email: json['email'] as String? ?? '',
+        name: json['name'] as String? ?? 'User',
+        role: UserRole.fromString(json['role'] as String?),
         avatarUrl: json['avatarUrl'] as String?,
         phone: json['phone'] as String?,
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        updatedAt: DateTime.parse(json['updatedAt'] as String),
+        bio: json['bio'] as String?,
+        institution: json['institution'] as String? ?? 'National Institute of Technology',
+        department: json['department'] as String?,
+        createdAt: json['createdAt'] != null
+            ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
+            : DateTime.now(),
+        updatedAt: json['updatedAt'] != null
+            ? DateTime.tryParse(json['updatedAt'] as String) ?? DateTime.now()
+            : DateTime.now(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -40,6 +75,9 @@ class UserModel {
         'role': role.name,
         'avatarUrl': avatarUrl,
         'phone': phone,
+        'bio': bio,
+        'institution': institution,
+        'department': department,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -51,6 +89,9 @@ class UserModel {
     UserRole? role,
     String? avatarUrl,
     String? phone,
+    String? bio,
+    String? institution,
+    String? department,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) =>
@@ -61,12 +102,15 @@ class UserModel {
         role: role ?? this.role,
         avatarUrl: avatarUrl ?? this.avatarUrl,
         phone: phone ?? this.phone,
+        bio: bio ?? this.bio,
+        institution: institution ?? this.institution,
+        department: department ?? this.department,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
 
   String get initials {
-    final parts = name.trim().split(' ');
+    final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return '?';
     if (parts.length == 1) return parts.first[0].toUpperCase();
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
@@ -93,11 +137,13 @@ class StudentModel {
 
   factory StudentModel.fromJson(Map<String, dynamic> json) => StudentModel(
         user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
-        studentId: json['studentId'] as String,
-        courseId: json['courseId'] as String,
-        batchId: json['batchId'] as String,
-        semester: json['semester'] as int,
-        enrollmentDate: DateTime.parse(json['enrollmentDate'] as String),
+        studentId: json['studentId'] as String? ?? 'STU-001',
+        courseId: json['courseId'] as String? ?? 'course-btech-cse',
+        batchId: json['batchId'] as String? ?? 'batch-2024-a',
+        semester: (json['semester'] as num?)?.toInt() ?? 4,
+        enrollmentDate: json['enrollmentDate'] != null
+            ? DateTime.tryParse(json['enrollmentDate'] as String) ?? DateTime.now()
+            : DateTime.now(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -143,10 +189,9 @@ class TeacherModel {
 
   factory TeacherModel.fromJson(Map<String, dynamic> json) => TeacherModel(
         user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
-        employeeId: json['employeeId'] as String,
-        departmentId: json['departmentId'] as String,
-        subjectIds:
-            (json['subjectIds'] as List<dynamic>).cast<String>().toList(),
+        employeeId: json['employeeId'] as String? ?? 'EMP-001',
+        departmentId: json['departmentId'] as String? ?? 'dept-cse',
+        subjectIds: (json['subjectIds'] as List<dynamic>?)?.cast<String>().toList() ?? const [],
       );
 
   Map<String, dynamic> toJson() => {
@@ -155,4 +200,17 @@ class TeacherModel {
         'departmentId': departmentId,
         'subjectIds': subjectIds,
       };
+
+  TeacherModel copyWith({
+    UserModel? user,
+    String? employeeId,
+    String? departmentId,
+    List<String>? subjectIds,
+  }) =>
+      TeacherModel(
+        user: user ?? this.user,
+        employeeId: employeeId ?? this.employeeId,
+        departmentId: departmentId ?? this.departmentId,
+        subjectIds: subjectIds ?? this.subjectIds,
+      );
 }

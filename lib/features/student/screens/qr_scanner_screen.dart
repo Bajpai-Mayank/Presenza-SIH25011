@@ -8,7 +8,7 @@ import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/data/services/location_service.dart';
 import 'package:presenza/providers/app_providers.dart';
 
-/// Production QR Scanner Screen for classroom attendance verification.
+/// QR Scanner Screen for classroom attendance verification.
 class QrScannerScreen extends ConsumerStatefulWidget {
   const QrScannerScreen({super.key});
 
@@ -20,7 +20,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   bool _isProcessing = false;
   bool _scanComplete = false;
   String _statusMessage = 'Point Camera at Classroom QR';
-  String _detailMessage = 'Align the QR code within the highlighted square.';
+  String _detailMessage = 'Align the QR code within the highlighted viewfinder.';
   bool _isSuccess = false;
 
   final FirestoreService _firestoreService = FirestoreService();
@@ -63,15 +63,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     }
 
     try {
-      // 1. Fetch active session from Firestore
       final session = await _firestoreService.getAttendanceSession(trimmedCode);
       if (session == null) {
-        _showFailure('Invalid QR code. No session found.');
+        _showFailure('Invalid QR code. No active session found.');
         return;
       }
 
       if (!session.isActive) {
-        _showFailure('This attendance session has already been closed by the teacher.');
+        _showFailure('This attendance session has already been closed by the faculty.');
         return;
       }
 
@@ -81,11 +80,10 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
       }
 
       if (session.courseId != student.courseId || session.batchId != student.batchId) {
-        _showFailure('This session is for a different class or batch.');
+        _showFailure('This session is for a different class or section.');
         return;
       }
 
-      // 2. Perform location verification if required by session policy
       bool locationVerified = false;
       double? currentLat;
       double? currentLng;
@@ -112,7 +110,6 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         currentLng = locResult.longitude;
       }
 
-      // 3. Mark attendance using Firestore transaction (atomic duplicate check & write)
       setState(() {
         _statusMessage = 'Recording Attendance...';
         _detailMessage = 'Committing secure attendance record...';
@@ -134,7 +131,6 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         return;
       }
 
-      // 4. Success state
       setState(() {
         _scanComplete = true;
         _isProcessing = false;
@@ -167,17 +163,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'If camera scanning is unavailable, enter the session code displayed on the teacher screen.',
+              'Enter the session code displayed on the faculty screen.',
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 16),
-            TextField(
+            AppTextField(
               controller: textController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Session Code / Token',
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Session Code / Token',
+              prefixIcon: Icons.pin_outlined,
             ),
           ],
         ),
@@ -186,7 +179,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
-          FilledButton(
+          ElevatedButton(
             onPressed: () {
               final code = textController.text.trim();
               Navigator.pop(dialogCtx);
@@ -208,8 +201,6 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan Attendance QR'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         actions: [
           if (!_scanComplete && !_isProcessing)
             IconButton(
@@ -219,204 +210,132 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
             ),
         ],
       ),
-      extendBodyBehindAppBar: true,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [
-                    AppColors.backgroundDark,
-                    const Color(0xFF0F0F0F),
-                    const Color(0xFF111111),
-                  ]
-                : [
-                    AppColors.backgroundLight,
-                    const Color(0xFFEAEAEC),
-                    AppColors.backgroundLight,
-                  ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Center(
-                    child: GlassCard(
-                      width: double.infinity,
-                      height: 380,
-                      borderRadius: 30,
-                      padding: EdgeInsets.zero,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(30),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            if (!_scanComplete && !_isProcessing)
-                              MobileScanner(
-                                controller: _cameraController,
-                                onDetect: (capture) {
-                                  final barcodes = capture.barcodes;
-                                  for (final barcode in barcodes) {
-                                    if (barcode.rawValue != null) {
-                                      _processQrCode(barcode.rawValue!);
-                                      break;
-                                    }
-                                  }
-                                },
-                              )
-                            else
-                              Container(
-                                color: Colors.black.withAlpha(80),
-                                child: Center(
-                                  child: Icon(
-                                    _isSuccess
-                                        ? Icons.check_circle_outline
-                                        : Icons.qr_code_scanner_outlined,
-                                    size: 140,
-                                    color: _isSuccess
-                                        ? AppColors.success
-                                        : Colors.white24,
-                                  ),
-                                ),
-                              ),
-
-                            // Highlight box overlay
-                            if (!_scanComplete)
-                              Container(
-                                width: 240,
-                                height: 240,
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: _isProcessing
-                                        ? AppColors.info
-                                        : AppColors.white.withAlpha(100),
-                                    width: 4,
-                                  ),
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                              ),
-
-                            // Laser animation
-                            if (_isProcessing)
-                              const _ScanningLineAnimation(),
-                          ],
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: AppCard(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 260,
+                          height: 260,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _isSuccess
+                                  ? AppColors.success
+                                  : (_statusMessage.contains('Failed')
+                                      ? AppColors.error
+                                      : AppColors.primary),
+                              width: 2,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: _buildScannerArea(isDark),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 24),
+                        Text(
+                          _statusMessage,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: _isSuccess
+                                    ? AppColors.success
+                                    : (_statusMessage.contains('Failed')
+                                        ? AppColors.error
+                                        : null),
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _detailMessage,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-                GlassCard(
-                  child: Column(
-                    children: [
-                      Text(
-                        _statusMessage,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: _isSuccess
-                                  ? AppColors.success
-                                  : (!_isProcessing && _detailMessage.contains('Failed')
-                                      ? AppColors.error
-                                      : null),
-                            ),
+              ),
+              const SizedBox(height: 16),
+              if (_scanComplete || _statusMessage.contains('Failed'))
+                Row(
+                  children: [
+                    if (_statusMessage.contains('Failed'))
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              _statusMessage = 'Point Camera at Classroom QR';
+                              _detailMessage = 'Align the QR code within the highlighted viewfinder.';
+                              _isProcessing = false;
+                              _scanComplete = false;
+                            });
+                          },
+                          child: const Text('Try Again'),
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _detailMessage,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.gray400,
-                            ),
+                    if (_statusMessage.contains('Failed')) const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Done / Return'),
                       ),
-                      const SizedBox(height: 20),
-                      if (_isProcessing)
-                        const SizedBox(
-                          height: 48,
-                          child: Center(
-                            child: CircularProgressIndicator(color: AppColors.white),
-                          ),
-                        ),
-                      if (!_isProcessing && !_scanComplete) ...[
-                        GlassButton(
-                          label: 'Enter Code Manually',
-                          icon: Icons.keyboard,
-                          onPressed: _showManualEntryDialog,
-                          filled: false,
-                        ),
-                      ],
-                      if (_scanComplete)
-                        GlassButton(
-                          label: 'Back to Dashboard',
-                          icon: Icons.check,
-                          onPressed: () => Navigator.of(context).pop(),
-                        ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
-}
 
-class _ScanningLineAnimation extends StatefulWidget {
-  const _ScanningLineAnimation();
-
-  @override
-  State<_ScanningLineAnimation> createState() => _ScanningLineAnimationState();
-}
-
-class _ScanningLineAnimationState extends State<_ScanningLineAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
-    _animation = Tween<double>(begin: -100.0, end: 100.0).animate(_controller);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _animation.value),
-          child: Container(
-            width: 220,
-            height: 2,
-            decoration: BoxDecoration(
-              color: AppColors.info,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.info.withAlpha(200),
-                  blurRadius: 8,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
+  Widget _buildScannerArea(bool isDark) {
+    if (_scanComplete && _isSuccess) {
+      return Container(
+        color: AppColors.success.withAlpha(25),
+        child: const Center(
+          child: Icon(
+            Icons.check_circle_rounded,
+            size: 80,
+            color: AppColors.success,
           ),
-        );
+        ),
+      );
+    }
+
+    if (_isProcessing) {
+      return Container(
+        color: (isDark ? AppColors.cardDark : AppColors.slate100),
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_cameraController == null) {
+      return const Center(child: Text('Camera initializing...'));
+    }
+
+    return MobileScanner(
+      controller: _cameraController!,
+      onDetect: (capture) {
+        final barcodes = capture.barcodes;
+        for (final barcode in barcodes) {
+          if (barcode.rawValue != null) {
+            _processQrCode(barcode.rawValue!);
+            break;
+          }
+        }
       },
     );
   }

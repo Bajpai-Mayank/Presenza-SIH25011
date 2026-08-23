@@ -35,11 +35,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Password reset email sent! Check your inbox.'),
+            content: Text('Password reset email sent! Please check your inbox.'),
             backgroundColor: AppColors.success,
           ),
         );
-        context.pop(); // Go back to login screen
+        context.pop();
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
@@ -73,120 +73,87 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Reset Password'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [
-                    AppColors.backgroundDark,
-                    const Color(0xFF0F0F0F),
-                    const Color(0xFF111111),
-                  ]
-                : [
-                    AppColors.backgroundLight,
-                    const Color(0xFFEAEAEC),
-                    AppColors.backgroundLight,
-                  ],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Lock Icon Header
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isDark
-                              ? AppColors.white.withAlpha(13)
-                              : AppColors.black.withAlpha(8),
-                          border: Border.all(
-                            color: isDark
-                                ? AppColors.white.withAlpha(25)
-                                : AppColors.black.withAlpha(15),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer,
+                        border: Border.all(
+                          color: isDark ? AppColors.cardBorderDark : AppColors.cardBorderLight,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.lock_reset_rounded,
+                        size: 38,
+                        color: isDark ? AppColors.primaryDark : AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Forgot Password?',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
                           ),
-                        ),
-                        child: Icon(
-                          Icons.lock_reset_rounded,
-                          size: 44,
-                          color: isDark ? AppColors.white : AppColors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Forgot Password?',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Enter your email to receive a password reset link',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: isDark ? AppColors.gray400 : AppColors.gray600,
-                            ),
-                      ),
-                      const SizedBox(height: 32),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Enter your institutional email address and we will send you instructions to reset your password.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: isDark ? AppColors.textMutedDark : AppColors.textSecondaryLight,
+                          ),
+                    ),
+                    const SizedBox(height: 28),
 
-                      // Reset Form Card
-                      GlassCard(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          children: [
-                            GlassTextField(
-                              controller: _emailController,
-                              labelText: 'Email Address',
-                              prefixIcon: Icons.email_outlined,
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'Please enter your email';
-                                }
-                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                    .hasMatch(v.trim())) {
-                                  return 'Please enter a valid email';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 24),
-                            GlassButton(
-                              label: 'Send Reset Link',
-                              isLoading: _isLoading,
-                              onPressed: _handlePasswordReset,
-                            ),
-                          ],
-                        ),
+                    AppCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          AppTextField(
+                            controller: _emailController,
+                            labelText: 'Email Address',
+                            prefixIcon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Please enter your email';
+                              }
+                              if (!v.contains('@') || !v.contains('.')) {
+                                return 'Please enter a valid email';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 24),
+                          AppButton.primary(
+                            label: 'Send Reset Link',
+                            isLoading: _isLoading,
+                            onPressed: _handlePasswordReset,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 24),
+                    ),
+                    const SizedBox(height: 20),
 
-                      TextButton(
-                        onPressed: () => context.pop(),
-                        child: const Text('Back to Login'),
-                      ),
-                    ],
-                  ),
+                    TextButton(
+                      onPressed: () => context.pop(),
+                      child: const Text('Back to Sign In'),
+                    ),
+                  ],
                 ),
               ),
             ),

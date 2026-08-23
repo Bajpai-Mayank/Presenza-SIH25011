@@ -8,8 +8,9 @@ import 'package:presenza/features/auth/screens/register_screen.dart';
 import 'package:presenza/features/auth/screens/forgot_password_screen.dart';
 import 'package:presenza/features/auth/screens/no_profile_screen.dart';
 
-// Shell & Dashboard imports
+// Shell & Feature imports
 import 'package:presenza/features/student/screens/student_shell.dart';
+import 'package:presenza/features/student/screens/qr_scanner_screen.dart';
 import 'package:presenza/features/teacher/screens/teacher_shell.dart';
 import 'package:presenza/features/admin/screens/admin_shell.dart';
 
@@ -26,7 +27,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           currentLoc == '/register';
       final isNoProfileRoute = currentLoc == '/no-profile';
 
-      // While auth is initializing, stay on login (the UI shows loading)
+      // While auth is initializing, stay on login
       if (authStatus.isInitializing) {
         return isAuthRoute ? null : '/login';
       }
@@ -55,9 +56,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // Role-based route protection:
-      // Prevent students from accessing teacher/admin routes
-      // Prevent teachers from accessing admin routes
-      // Prevent unauthorized access across roles
       if (currentLoc.startsWith('/admin') &&
           authState.role != UserRole.admin) {
         switch (authState.role) {
@@ -66,7 +64,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           case UserRole.teacher:
             return '/teacher';
           case UserRole.admin:
-            return null; // Already admin
+            return null;
         }
       }
 
@@ -109,6 +107,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/student',
         builder: (context, state) => const StudentShell(),
+      ),
+      GoRoute(
+        path: '/qr-scanner',
+        builder: (context, state) => const QrScannerScreen(),
       ),
       GoRoute(
         path: '/teacher',

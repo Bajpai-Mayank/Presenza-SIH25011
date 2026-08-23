@@ -1,13 +1,18 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:presenza/core/enums/enums.dart';
-import 'package:presenza/core/enums/attendance_status.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/config/theme/app_theme.dart';
 import 'package:presenza/core/enums/user_role.dart';
+import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/user_model.dart';
-import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/core/services/security_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   group('SubjectAttendance Model Tests & Edge Cases', () {
     test('Calculates attendance percentage accurately', () {
       const sa = SubjectAttendance(
@@ -38,8 +43,6 @@ void main() {
         excused: 0,
       );
 
-      // Current is 50%, target is 75%
-      // (5 + x) / (10 + x) >= 0.75 => x >= (7.5 - 5) / 0.25 = 10
       expect(sa.classesNeededForThreshold(75.0), equals(10));
     });
 
@@ -55,8 +58,6 @@ void main() {
         excused: 0,
       );
 
-      // Current is 100%, threshold is 75%
-      // 10 / 0.75 - 10 = 13.33 - 10 = 3
       expect(sa.classesCanMiss(75.0), equals(3));
     });
 
@@ -114,10 +115,13 @@ void main() {
         email: 'mayank@test.com',
         name: 'Mayank Bajpai',
         role: UserRole.student,
+        bio: 'CS Student',
+        department: 'CSE',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
       expect(user1.initials, equals('MB'));
+      expect(user1.bio, equals('CS Student'));
 
       final user2 = UserModel(
         id: 'u2',
@@ -189,89 +193,63 @@ void main() {
       expect(restored.teacherName, equals('Dr. Alan Turing'));
       expect(restored.room, equals('Lab 402'));
     });
+  });
 
-    test('AttendanceRecordModel stores rich session context', () {
+  group('ActivityPostModel Presenza V2 Tests', () {
+    test('ActivityPostModel serializes reactions, bookmarks, and interest counts accurately', () {
       final now = DateTime.now();
-      final record = AttendanceRecordModel(
-        id: 'rec-1',
-        studentId: 'std-1',
-        attendanceSessionId: 'sess-1',
-        subjectId: 'sub-1',
-        subjectName: 'Algorithms',
-        courseId: 'course-btech-cse',
-        teacherId: 'teach-1',
-        teacherName: 'Prof. Donald Knuth',
-        room: 'Hall B',
-        status: AttendanceStatus.present,
-        verificationMethod: VerificationMethod.qr,
-        timestamp: now,
-        locationVerified: true,
+      final post = ActivityPostModel(
+        id: 'act-v2-1',
+        title: 'Presenza AI & Cloud Hackathon 2026',
+        description: 'Compete in 36-hour challenge build.',
+        category: ActivityCategory.hackathon,
+        authorId: 'stu-1',
+        authorName: 'Alex Rivera',
+        authorRole: 'student',
+        isOfficial: false,
+        status: ActivityStatus.approved,
+        reactionCounts: {'like': 12, 'fire': 8},
+        userReactions: {'stu-1': 'fire', 'stu-2': 'like'},
+        interestedUids: ['stu-1', 'stu-2', 'stu-3'],
+        bookmarkedUids: ['stu-1'],
+        commentCount: 5,
         createdAt: now,
         updatedAt: now,
       );
 
-      final json = record.toJson();
-      final restored = AttendanceRecordModel.fromJson(json);
+      expect(post.totalReactions, equals(20));
+      expect(post.isInterested('stu-1'), isTrue);
+      expect(post.isInterested('stu-99'), isFalse);
+      expect(post.isBookmarked('stu-1'), isTrue);
+      expect(post.getUserReaction('stu-1'), equals('fire'));
 
-      expect(restored.subjectName, equals('Algorithms'));
-      expect(restored.teacherName, equals('Prof. Donald Knuth'));
-      expect(restored.room, equals('Hall B'));
-      expect(restored.locationVerified, isTrue);
+      final json = post.toJson();
+      final restored = ActivityPostModel.fromJson(json);
+
+      expect(restored.id, equals('act-v2-1'));
+      expect(restored.category, equals(ActivityCategory.hackathon));
+      expect(restored.totalReactions, equals(20));
+      expect(restored.interestedUids.length, equals(3));
     });
   });
 
-  group('CircularModel & Activities Tests', () {
-    test('Differentiates official announcements from student activities', () {
-      final now = DateTime.now();
-      final official = CircularModel(
-        id: 'circ-1',
-        title: 'Mid-term Exams Schedule',
-        content: 'Exams begin next week.',
-        category: CircularCategory.academic,
-        priority: CircularPriority.urgent,
-        authorId: 'faculty-1',
-        authorName: 'Academic Dean',
-        authorRole: 'teacher',
-        isOfficial: true,
-        publishDate: now,
-        createdAt: now,
-        updatedAt: now,
-      );
+  group('AppTheme & Presenza Brand System Tests', () {
+    test('AppTheme light and dark mode initialize with valid color schemes', () {
+      final light = AppTheme.light;
+      final dark = AppTheme.dark;
 
-      final studentActivity = CircularModel(
-        id: 'act-1',
-        title: 'Presenza Hackathon 2026',
-        content: 'Join team formation meet.',
-        category: CircularCategory.events,
-        priority: CircularPriority.normal,
-        authorId: 'student-1',
-        authorName: 'Alex Doe',
-        authorRole: 'student',
-        isOfficial: false,
-        location: 'CS Lab 3',
-        organizer: 'Coding Club',
-        publishDate: now,
-        createdAt: now,
-        updatedAt: now,
-      );
+      expect(light.brightness, equals(Brightness.light));
+      expect(dark.brightness, equals(Brightness.dark));
 
-      expect(official.isOfficial, isTrue);
-      expect(official.isUrgent, isTrue);
-
-      expect(studentActivity.isOfficial, isFalse);
-      expect(studentActivity.organizer, equals('Coding Club'));
-      expect(studentActivity.location, equals('CS Lab 3'));
-
-      final json = studentActivity.toJson();
-      final restored = CircularModel.fromJson(json);
-      expect(restored.isOfficial, isFalse);
-      expect(restored.organizer, equals('Coding Club'));
+      expect(AppColors.primary, equals(const Color(0xFF4F46E5)));
+      expect(AppColors.primaryNavy, equals(const Color(0xFF1E3A8A)));
+      expect(AppColors.secondary, equals(const Color(0xFF0D9488)));
+      expect(AppColors.backgroundDark, equals(const Color(0xFF0B1120)));
     });
   });
 
   group('SecurityService Tests', () {
     test('SecurityService safe execution on non-Android test environment', () async {
-      // In host test environment (Windows), it safely returns false without throwing exceptions
       final enabled = await SecurityService.enableScreenshotProtection();
       expect(enabled, isFalse);
 
@@ -283,4 +261,3 @@ void main() {
     });
   });
 }
-

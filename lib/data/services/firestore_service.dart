@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/app_models.dart';
+import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/core/enums/attendance_status.dart';
 import 'package:presenza/core/enums/enums.dart';
@@ -39,6 +40,42 @@ class FirestoreService {
     final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists || doc.data() == null) return null;
     return UserModel.fromJson(doc.data()!);
+  }
+
+  /// Updates a user's profile info (bio, phone, name, avatar).
+  Future<void> updateUserProfile({
+    required String uid,
+    String? name,
+    String? bio,
+    String? phone,
+    String? avatarUrl,
+  }) async {
+    final Map<String, dynamic> updates = {
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    if (name != null) updates['name'] = name;
+    if (bio != null) updates['bio'] = bio;
+    if (phone != null) updates['phone'] = phone;
+    if (avatarUrl != null) updates['avatarUrl'] = avatarUrl;
+
+    await _db.collection('users').doc(uid).update(updates);
+
+    // Also update nested user document in students/teachers collection if present
+    final studentDoc = await _db.collection('students').doc(uid).get();
+    if (studentDoc.exists && studentDoc.data() != null) {
+      final current = studentDoc.data()!;
+      final userMap = Map<String, dynamic>.from(current['user'] as Map? ?? {});
+      userMap.addAll(updates);
+      await _db.collection('students').doc(uid).update({'user': userMap});
+    }
+
+    final teacherDoc = await _db.collection('teachers').doc(uid).get();
+    if (teacherDoc.exists && teacherDoc.data() != null) {
+      final current = teacherDoc.data()!;
+      final userMap = Map<String, dynamic>.from(current['user'] as Map? ?? {});
+      userMap.addAll(updates);
+      await _db.collection('teachers').doc(uid).update({'user': userMap});
+    }
   }
 
   /// Updates a user's role (admin operation).
@@ -129,10 +166,8 @@ class FirestoreService {
     required String teacherUid,
     required SubjectModel subject,
   }) async {
-    // 1. Save subject document
     await saveSubject(subject);
 
-    // 2. Associate subject with teacher profile
     final teacherRef = _db.collection('teachers').doc(teacherUid);
     final teacherDoc = await teacherRef.get();
     if (teacherDoc.exists && teacherDoc.data() != null) {
@@ -150,25 +185,199 @@ class FirestoreService {
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // CIRCULARS
+  // CIRCULARS & CAMPUS ACTIVITIES
   // ══════════════════════════════════════════════════════════════════════
 
-  /// Stream all circulars, ordered by publish date descending.
+  /// Stream all circulars (legacy compatibility).
   Stream<List<CircularModel>> streamCirculars() {
     return _db
         .collection('circulars')
-        .orderBy('publishDate', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
+      final list = snapshot.docs
           .map((doc) => CircularModel.fromJson(doc.data()))
           .toList();
+      list.sort((a, b) => b.publishDate.compareTo(a.publishDate));
+      return list;
     });
   }
 
-  /// Save a circular (teacher/admin operation).
+  /// Save a circular.
   Future<void> saveCircular(CircularModel circular) async {
     await _db.collection('circulars').doc(circular.id).set(circular.toJson());
+  }
+
+  /// Stream all approved campus activities and official circulars.
+  Stream<List<ActivityPostModel>> streamApprovedActivities() {
+    return _db.collection('circulars').snapshots().map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => ActivityPostModel.fromJson(doc.data()))
+          .where((p) => p.status == ActivityStatus.approved || p.isOfficial)
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Stream pending activity submissions (for teacher/admin review).
+  Stream<List<ActivityPostModel>> streamPendingActivities() {
+    return _db
+        .collection('circulars')
+        .where('status', isEqualTo: ActivityStatus.pending.name)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => ActivityPostModel.fromJson(doc.data()))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Create or update a campus activity post.
+  Future<void> saveActivityPost(ActivityPostModel post) async {
+    await _db.collection('circulars').doc(post.id).set(post.toJson());
+  }
+
+  /// Approve a pending student post.
+  Future<void> approveActivityPost(String postId) async {
+    await _db.collection('circulars').doc(postId).update({
+      'status': ActivityStatus.approved.name,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Reject a pending student post.
+  Future<void> rejectActivityPost(String postId) async {
+    await _db.collection('circulars').doc(postId).update({
+      'status': ActivityStatus.rejected.name,
+      'updatedAt': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Toggle reaction (like, clap, fire) on an activity post.
+  Future<void> toggleReaction({
+    required String postId,
+    required String userId,
+    required String reactionType,
+  }) async {
+    final docRef = _db.collection('circulars').doc(postId);
+    await _db.runTransaction((txn) async {
+      final snap = await txn.get(docRef);
+      if (!snap.exists || snap.data() == null) return;
+
+      final post = ActivityPostModel.fromJson(snap.data()!);
+      final userReactions = Map<String, String>.from(post.userReactions);
+      final reactionCounts = Map<String, int>.from(post.reactionCounts);
+
+      final currentReaction = userReactions[userId];
+      if (currentReaction == reactionType) {
+        // Remove reaction
+        userReactions.remove(userId);
+        reactionCounts[reactionType] = ((reactionCounts[reactionType] ?? 1) - 1).clamp(0, 99999);
+      } else {
+        // If user already had a different reaction, decrement it first
+        if (currentReaction != null) {
+          reactionCounts[currentReaction] =
+              ((reactionCounts[currentReaction] ?? 1) - 1).clamp(0, 99999);
+        }
+        // Set new reaction
+        userReactions[userId] = reactionType;
+        reactionCounts[reactionType] = (reactionCounts[reactionType] ?? 0) + 1;
+      }
+
+      txn.update(docRef, {
+        'userReactions': userReactions,
+        'reactionCounts': reactionCounts,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    });
+  }
+
+  /// Toggle "Interested / Going" for an event post.
+  Future<void> toggleInterested({
+    required String postId,
+    required String userId,
+  }) async {
+    final docRef = _db.collection('circulars').doc(postId);
+    await _db.runTransaction((txn) async {
+      final snap = await txn.get(docRef);
+      if (!snap.exists || snap.data() == null) return;
+
+      final post = ActivityPostModel.fromJson(snap.data()!);
+      final interested = List<String>.from(post.interestedUids);
+
+      if (interested.contains(userId)) {
+        interested.remove(userId);
+      } else {
+        interested.add(userId);
+      }
+
+      txn.update(docRef, {
+        'interestedUids': interested,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    });
+  }
+
+  /// Toggle bookmark for a user on a post.
+  Future<void> togglePostBookmark({
+    required String postId,
+    required String userId,
+  }) async {
+    final docRef = _db.collection('circulars').doc(postId);
+    await _db.runTransaction((txn) async {
+      final snap = await txn.get(docRef);
+      if (!snap.exists || snap.data() == null) return;
+
+      final post = ActivityPostModel.fromJson(snap.data()!);
+      final bookmarks = List<String>.from(post.bookmarkedUids);
+
+      if (bookmarks.contains(userId)) {
+        bookmarks.remove(userId);
+      } else {
+        bookmarks.add(userId);
+      }
+
+      txn.update(docRef, {
+        'bookmarkedUids': bookmarks,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    });
+  }
+
+  /// Stream comments for an activity post.
+  Stream<List<ActivityCommentModel>> streamActivityComments(String postId) {
+    return _db
+        .collection('circulars')
+        .doc(postId)
+        .collection('comments')
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => ActivityCommentModel.fromJson(doc.data()))
+          .toList();
+      list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return list;
+    });
+  }
+
+  /// Add a comment to an activity post.
+  Future<void> addActivityComment(ActivityCommentModel comment) async {
+    final commentRef = _db
+        .collection('circulars')
+        .doc(comment.activityId)
+        .collection('comments')
+        .doc(comment.id);
+    final postRef = _db.collection('circulars').doc(comment.activityId);
+
+    await _db.runTransaction((txn) async {
+      txn.set(commentRef, comment.toJson());
+      txn.update(postRef, {
+        'commentCount': FieldValue.increment(1),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -177,14 +386,12 @@ class FirestoreService {
 
   /// Stream all events, ordered by date.
   Stream<List<EventModel>> streamEvents() {
-    return _db
-        .collection('events')
-        .orderBy('date', descending: false)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
+    return _db.collection('events').snapshots().map((snapshot) {
+      final list = snapshot.docs
           .map((doc) => EventModel.fromJson(doc.data()))
           .toList();
+      list.sort((a, b) => a.date.compareTo(b.date));
+      return list;
     });
   }
 
@@ -234,7 +441,7 @@ class FirestoreService {
     await batch.commit();
   }
 
-  /// Create a notification (teacher/admin operation).
+  /// Create a notification.
   Future<void> createNotification(NotificationModel notification) async {
     await _db
         .collection('notifications')
@@ -284,10 +491,7 @@ class FirestoreService {
 
   /// Stream audit logs, ordered by timestamp descending.
   Stream<List<AuditLogModel>> streamAuditLogs() {
-    return _db
-        .collection('audit_logs')
-        .snapshots()
-        .map((snapshot) {
+    return _db.collection('audit_logs').snapshots().map((snapshot) {
       final list = snapshot.docs
           .map((doc) => AuditLogModel.fromJson(doc.data()))
           .toList();
@@ -354,6 +558,19 @@ class FirestoreService {
         .map((snapshot) {
       if (snapshot.docs.isEmpty) return null;
       return AttendanceSessionModel.fromJson(snapshot.docs.first.data());
+    });
+  }
+
+  /// Stream of all currently active attendance sessions (for admin monitor).
+  Stream<List<AttendanceSessionModel>> streamActiveAttendanceSessions() {
+    return _db
+        .collection('sessions')
+        .where('isActive', isEqualTo: true)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => AttendanceSessionModel.fromJson(doc.data()))
+          .toList();
     });
   }
 
@@ -449,9 +666,6 @@ class FirestoreService {
   // ══════════════════════════════════════════════════════════════════════
 
   /// Marks attendance using a Firestore transaction for atomicity.
-  ///
-  /// Validates: session exists & active, session not expired, student's
-  /// course/batch matches, and no duplicate attendance record exists.
   Future<AttendanceResult> markAttendanceWithTransaction({
     required String sessionId,
     required String studentUid,
@@ -469,7 +683,7 @@ class FirestoreService {
             await txn.get(_db.collection('sessions').doc(sessionId));
         if (!sessionDoc.exists || sessionDoc.data() == null) {
           return const AttendanceResult.failure(
-            'No session found for this QR code.',
+            'No active session found for this QR code.',
           );
         }
         final session = AttendanceSessionModel.fromJson(sessionDoc.data()!);
@@ -492,7 +706,7 @@ class FirestoreService {
         if (session.courseId != studentCourseId ||
             session.batchId != studentBatchId) {
           return const AttendanceResult.failure(
-            'This session is not for your class/batch.',
+            'This session is for another class/batch.',
           );
         }
 
@@ -505,11 +719,11 @@ class FirestoreService {
             .get();
         if (existingRecords.docs.isNotEmpty) {
           return const AttendanceResult.failure(
-            'You have already marked attendance for this session.',
+            'You have already marked attendance for this class.',
           );
         }
 
-        // 6. Create the attendance record with a secure UUID
+        // 6. Create the attendance record
         final now = DateTime.now();
         final recordId = _uuid.v4();
         final record = AttendanceRecordModel(
@@ -628,7 +842,7 @@ class FirestoreService {
     };
   }
 
-  /// Seed initial academic data (courses, batches, subjects, policies) if not already created.
+  /// Seed initial academic data and rich sample activities if not already created.
   Future<void> seedInitialAcademicData() async {
     try {
       final coursesSnap = await _db.collection('courses').limit(1).get();
@@ -710,7 +924,7 @@ class FirestoreService {
           id: 'policy-cse',
           courseId: 'course-btech-cse',
           minimumAttendancePercent: 75.0,
-          qrExpiryMinutes: 5,
+          qrExpiryMinutes: 10,
           locationRequired: false,
           faceVerificationMode: FaceVerificationMode.disabled,
           campusLat: 28.6139,
@@ -719,24 +933,76 @@ class FirestoreService {
         );
         await saveAttendancePolicy(policy);
 
-        // 5. Create Welcome Circular
-        final circular = CircularModel(
-          id: _uuid.v4(),
-          title: 'Welcome to Presenza Academic Portal',
-          content: 'The smart circular and dynamic attendance verification system is live. Students can check schedules and scan class QR codes.',
-          category: CircularCategory.academic,
-          priority: CircularPriority.important,
-          authorId: 'admin',
-          authorName: 'Academic Office',
-          targetCourseIds: ['course-btech-cse'],
-          publishDate: now,
-          createdAt: now,
-          updatedAt: now,
-        );
-        await saveCircular(circular);
+        // 5. Create Sample Campus Activities
+        final initialActivities = [
+          ActivityPostModel(
+            id: _uuid.v4(),
+            title: 'Welcome to Presenza V2 Academic Portal',
+            description: 'Presenza V2 is now officially deployed with dynamic attendance verification, interactive campus feeds, and smart schedule integration.',
+            category: ActivityCategory.notice,
+            authorId: 'admin',
+            authorName: 'Academic Office',
+            authorRole: 'admin',
+            isOfficial: true,
+            status: ActivityStatus.approved,
+            eventDate: now.add(const Duration(days: 2)),
+            location: 'Main Auditorium & Online',
+            organizer: 'Office of Dean Academics',
+            reactionCounts: {'like': 24, 'clap': 15, 'fire': 9},
+            interestedUids: ['admin'],
+            commentCount: 2,
+            createdAt: now,
+            updatedAt: now,
+          ),
+          ActivityPostModel(
+            id: _uuid.v4(),
+            title: 'Smart India Hackathon 2025 Internal Round',
+            description: 'Registrations are open for the internal college round of SIH 2025. Submit your team details and problem statement proposals by this Friday.',
+            category: ActivityCategory.hackathon,
+            authorId: 'faculty-01',
+            authorName: 'Dr. Robert Lang',
+            authorRole: 'teacher',
+            isOfficial: true,
+            status: ActivityStatus.approved,
+            eventDate: now.add(const Duration(days: 5)),
+            location: 'Computing Lab 3 & IoT Lab',
+            organizer: 'Department of Computer Science',
+            reactionCounts: {'like': 42, 'fire': 31, 'clap': 18},
+            interestedUids: [],
+            commentCount: 5,
+            createdAt: now.subtract(const Duration(hours: 4)),
+            updatedAt: now,
+          ),
+          ActivityPostModel(
+            id: _uuid.v4(),
+            title: 'Hands-on Workshop: Flutter & Mobile Cloud Architecture',
+            description: 'Join us for a 3-hour weekend masterclass covering modern Flutter architecture, Riverpod state management, and real-time cloud data pipelines.',
+            category: ActivityCategory.workshop,
+            authorId: 'student-tech-club',
+            authorName: 'Alex Rivera',
+            authorRole: 'student',
+            isOfficial: false,
+            status: ActivityStatus.approved,
+            eventDate: now.add(const Duration(days: 7)),
+            location: 'Seminar Hall B',
+            organizer: 'Developer Student Society',
+            reactionCounts: {'like': 19, 'clap': 12},
+            interestedUids: [],
+            commentCount: 1,
+            createdAt: now.subtract(const Duration(hours: 12)),
+            updatedAt: now,
+          ),
+        ];
+
+        for (final act in initialActivities) {
+          await saveActivityPost(act);
+        }
       }
-    } catch (e) {
-      // Ignore if offline
-    }
+    } catch (_) {}
+  }
+
+  /// Seed sample campus activity announcements.
+  Future<void> seedSampleActivities() async {
+    await seedInitialAcademicData();
   }
 }
