@@ -20,34 +20,86 @@ class RegisterScreen extends ConsumerStatefulWidget {
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   static const List<CourseModel> _defaultCourses = [
+    // Engineering & Technology
     CourseModel(
       id: 'course-btech-cse',
-      name: 'B.Tech Computer Science & Engineering',
+      name: 'B.Tech Computer Science & Engineering (CSE)',
       code: 'BTECH-CSE',
       departmentId: 'dept-cse',
       totalSemesters: 8,
     ),
     CourseModel(
+      id: 'course-btech-aids',
+      name: 'B.Tech Artificial Intelligence & Data Science (AI/DS)',
+      code: 'BTECH-AIDS',
+      departmentId: 'dept-cse',
+      totalSemesters: 8,
+    ),
+    CourseModel(
       id: 'course-btech-it',
-      name: 'B.Tech Information Technology',
+      name: 'B.Tech Information Technology (IT)',
       code: 'BTECH-IT',
       departmentId: 'dept-it',
       totalSemesters: 8,
     ),
     CourseModel(
       id: 'course-btech-ece',
-      name: 'B.Tech Electronics & Communication',
+      name: 'B.Tech Electronics & Communication (ECE)',
       code: 'BTECH-ECE',
       departmentId: 'dept-ece',
       totalSemesters: 8,
     ),
     CourseModel(
+      id: 'course-btech-ee',
+      name: 'B.Tech Electrical Engineering (EE)',
+      code: 'BTECH-EE',
+      departmentId: 'dept-ee',
+      totalSemesters: 8,
+    ),
+    CourseModel(
       id: 'course-btech-me',
-      name: 'B.Tech Mechanical Engineering',
+      name: 'B.Tech Mechanical Engineering (ME)',
       code: 'BTECH-ME',
       departmentId: 'dept-me',
       totalSemesters: 8,
     ),
+    CourseModel(
+      id: 'course-btech-ce',
+      name: 'B.Tech Civil Engineering (CE)',
+      code: 'BTECH-CE',
+      departmentId: 'dept-ce',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-btech-bt',
+      name: 'B.Tech Biotechnology (BT)',
+      code: 'BTECH-BT',
+      departmentId: 'dept-bt',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-mtech-cse',
+      name: 'M.Tech Computer Science & Engineering',
+      code: 'MTECH-CSE',
+      departmentId: 'dept-cse',
+      totalSemesters: 4,
+    ),
+    CourseModel(
+      id: 'course-mtech-dsai',
+      name: 'M.Tech Data Science & AI',
+      code: 'MTECH-DSAI',
+      departmentId: 'dept-cse',
+      totalSemesters: 4,
+    ),
+    CourseModel(
+      id: 'course-mtech-vlsi',
+      name: 'M.Tech VLSI & Embedded Systems',
+      code: 'MTECH-VLSI',
+      departmentId: 'dept-ece',
+      totalSemesters: 4,
+    ),
+
+    // Computer Applications
     CourseModel(
       id: 'course-bca',
       name: 'Bachelor of Computer Applications (BCA)',
@@ -62,12 +114,136 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       departmentId: 'dept-ca',
       totalSemesters: 4,
     ),
+
+    // Management & Business
+    CourseModel(
+      id: 'course-bba',
+      name: 'Bachelor of Business Administration (BBA)',
+      code: 'BBA',
+      departmentId: 'dept-mgmt',
+      totalSemesters: 6,
+    ),
     CourseModel(
       id: 'course-mba',
       name: 'Master of Business Administration (MBA)',
       code: 'MBA',
       departmentId: 'dept-mgmt',
       totalSemesters: 4,
+    ),
+    CourseModel(
+      id: 'course-bcom',
+      name: 'Bachelor of Commerce (B.Com Hons)',
+      code: 'BCOM',
+      departmentId: 'dept-commerce',
+      totalSemesters: 6,
+    ),
+    CourseModel(
+      id: 'course-mcom',
+      name: 'Master of Commerce (M.Com)',
+      code: 'MCOM',
+      departmentId: 'dept-commerce',
+      totalSemesters: 4,
+    ),
+
+    // Law & Legal Studies
+    CourseModel(
+      id: 'course-bba-llb',
+      name: 'BBA LL.B. (Integrated Honours)',
+      code: 'BBA-LLB',
+      departmentId: 'dept-law',
+      totalSemesters: 10,
+    ),
+    CourseModel(
+      id: 'course-ba-llb',
+      name: 'BA LL.B. (Integrated Honours)',
+      code: 'BA-LLB',
+      departmentId: 'dept-law',
+      totalSemesters: 10,
+    ),
+    CourseModel(
+      id: 'course-llb',
+      name: 'Bachelor of Laws (LL.B.)',
+      code: 'LLB',
+      departmentId: 'dept-law',
+      totalSemesters: 6,
+    ),
+    CourseModel(
+      id: 'course-llm',
+      name: 'Master of Laws (LL.M.)',
+      code: 'LLM',
+      departmentId: 'dept-law',
+      totalSemesters: 4,
+    ),
+
+    // Sciences & Integrated Dual Degrees
+    CourseModel(
+      id: 'course-bs-ms',
+      name: 'BS-MS Dual Degree (Integrated Sciences)',
+      code: 'BS-MS',
+      departmentId: 'dept-science',
+      totalSemesters: 10,
+    ),
+    CourseModel(
+      id: 'course-bsc-cs',
+      name: 'B.Sc Computer Science / Data Science',
+      code: 'BSC-CS',
+      departmentId: 'dept-science',
+      totalSemesters: 6,
+    ),
+    CourseModel(
+      id: 'course-bsc-pcm',
+      name: 'B.Sc Physical Sciences (PCM)',
+      code: 'BSC-PCM',
+      departmentId: 'dept-science',
+      totalSemesters: 6,
+    ),
+    CourseModel(
+      id: 'course-msc-ds',
+      name: 'M.Sc Data Science & Analytics',
+      code: 'MSC-DS',
+      departmentId: 'dept-science',
+      totalSemesters: 4,
+    ),
+
+    // Pharmacy & Health Sciences
+    CourseModel(
+      id: 'course-bpharm',
+      name: 'Bachelor of Pharmacy (B.Pharm)',
+      code: 'BPHARM',
+      departmentId: 'dept-pharmacy',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-mpharm',
+      name: 'Master of Pharmacy (M.Pharm)',
+      code: 'MPHARM',
+      departmentId: 'dept-pharmacy',
+      totalSemesters: 4,
+    ),
+
+    // Design & Architecture
+    CourseModel(
+      id: 'course-bdes',
+      name: 'Bachelor of Design (B.Des)',
+      code: 'BDES',
+      departmentId: 'dept-design',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-mdes',
+      name: 'Master of Design (M.Des)',
+      code: 'MDES',
+      departmentId: 'dept-design',
+      totalSemesters: 4,
+    ),
+
+    // Doctoral Research
+    CourseModel(
+      id: 'course-phd',
+      name: 'Ph.D. / Doctoral Research',
+      code: 'PHD',
+      departmentId: 'dept-research',
+      totalSemesters: 6,
     ),
   ];
 
@@ -442,8 +618,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     // Filter batches by selected course
     final availableBatches = batches.where((b) => b.courseId == _selectedCourseId).toList();
     
-    // Academic years
-    final defaultYears = [2023, 2024, 2025, 2026, 2027];
+    // Academic years (2021 to 2027 for complete exposure)
+    final defaultYears = [2021, 2022, 2023, 2024, 2025, 2026, 2027];
     final batchYears = availableBatches.map((b) => b.year).toSet().toList();
     final availableYears = (batchYears.isNotEmpty ? batchYears : defaultYears)..sort();
     

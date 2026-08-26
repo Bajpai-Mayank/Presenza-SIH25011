@@ -27,9 +27,10 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
   String? _selectedSubjectId;
   bool _isCustomSubject = false;
   String _selectedBatchId = 'batch-2024-a';
-  int _qrExpiryMinutes = 10;
+  int _qrExpirySeconds = 600; // default 10 mins (600s)
   bool _isCustomExpiry = false;
-  final _customExpiryController = TextEditingController();
+  String _customExpiryUnit = 'minutes'; // 'seconds' or 'minutes'
+  final _customExpiryController = TextEditingController(text: '10');
   bool _locationRequired = false;
   final FaceVerificationMode _faceMode = FaceVerificationMode.disabled;
   bool _isCreatingSession = false;
@@ -48,6 +49,22 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
     _customSubjectCodeController.dispose();
     _customExpiryController.dispose();
     super.dispose();
+  }
+
+  Widget _buildExpiryChip({required String label, required int seconds}) {
+    final isSelected = !_isCustomExpiry && _qrExpirySeconds == seconds;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (val) {
+        if (val) {
+          setState(() {
+            _isCustomExpiry = false;
+            _qrExpirySeconds = seconds;
+          });
+        }
+      },
+    );
   }
 
   Future<void> _startAttendanceSession() async {
@@ -104,18 +121,21 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
       }
     }
 
-    int finalExpiryMinutes = _qrExpiryMinutes;
+    int totalExpirySeconds = _qrExpirySeconds;
     if (_isCustomExpiry) {
       final parsed = int.tryParse(_customExpiryController.text.trim());
       if (parsed == null || parsed <= 0) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please enter a valid custom expiration time in minutes.'), backgroundColor: AppColors.error),
+            const SnackBar(
+              content: Text('Please enter a valid custom expiration time.'),
+              backgroundColor: AppColors.error,
+            ),
           );
         }
         return;
       }
-      finalExpiryMinutes = parsed;
+      totalExpirySeconds = _customExpiryUnit == 'seconds' ? parsed : parsed * 60;
     }
 
     setState(() => _isCreatingSession = true);
@@ -158,7 +178,7 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
       room: _roomController.text.trim(),
       date: now,
       startTime: now,
-      endTime: now.add(Duration(minutes: finalExpiryMinutes)),
+      endTime: now.add(Duration(seconds: totalExpirySeconds)),
       qrToken: token,
       isActive: true,
       locationRequired: _locationRequired,
@@ -349,28 +369,38 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Expiry Minutes
-                    Text('QR Expiration Time', style: Theme.of(context).textTheme.labelLarge),
+                    // Expiry Time (Preset chips in seconds/minutes + Custom unit selector)
+                    Row(
+                      children: [
+                        Text('QR Code Expiration Time', style: Theme.of(context).textTheme.labelLarge),
+                        const Spacer(),
+                        Text(
+                          _isCustomExpiry
+                              ? '${_customExpiryController.text.trim().isEmpty ? "10" : _customExpiryController.text.trim()} $_customExpiryUnit'
+                              : _qrExpirySeconds < 60
+                                  ? '$_qrExpirySeconds sec'
+                                  : '${_qrExpirySeconds ~/ 60} min',
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        ...[5, 10, 15, 30].map((mins) {
-                          return ChoiceChip(
-                            label: Text('$mins mins'),
-                            selected: !_isCustomExpiry && _qrExpiryMinutes == mins,
-                            onSelected: (val) {
-                              if (val) {
-                                setState(() {
-                                  _isCustomExpiry = false;
-                                  _qrExpiryMinutes = mins;
-                                });
-                              }
-                            },
-                          );
-                        }),
+                        _buildExpiryChip(label: '30s', seconds: 30),
+                        _buildExpiryChip(label: '60s', seconds: 60),
+                        _buildExpiryChip(label: '2 min', seconds: 120),
+                        _buildExpiryChip(label: '5 min', seconds: 300),
+                        _buildExpiryChip(label: '10 min', seconds: 600),
+                        _buildExpiryChip(label: '15 min', seconds: 900),
                         ChoiceChip(
-                          label: const Text('Custom'),
+                          label: const Text('Custom Time'),
                           selected: _isCustomExpiry,
                           onSelected: (val) {
                             if (val) setState(() => _isCustomExpiry = true);
@@ -380,11 +410,50 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
                     ),
                     if (_isCustomExpiry) ...[
                       const SizedBox(height: 12),
-                      AppTextField(
-                        controller: _customExpiryController,
-                        labelText: 'Custom Expiration (Minutes)',
-                        hintText: 'e.g. 45',
-                        keyboardType: TextInputType.number,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: AppTextField(
+                              controller: _customExpiryController,
+                              labelText: 'Custom Time Duration',
+                              hintText: _customExpiryUnit == 'seconds' ? 'e.g. 45' : 'e.g. 10',
+                              keyboardType: TextInputType.number,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: Container(
+                              height: 56,
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isDark ? AppColors.cardBorderDark : AppColors.cardBorderLight,
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _customExpiryUnit,
+                                  isExpanded: true,
+                                  items: const [
+                                    DropdownMenuItem(value: 'seconds', child: Text('Seconds (s)')),
+                                    DropdownMenuItem(value: 'minutes', child: Text('Minutes (m)')),
+                                  ],
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setState(() => _customExpiryUnit = val);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                     const SizedBox(height: 16),
@@ -522,7 +591,7 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
               ),
               const Spacer(),
               Text(
-                'Expires ${DateFormat('hh:mm a').format(session.endTime)}',
+                'Expires ${DateFormat('hh:mm:ss a').format(session.endTime)}',
                 style: Theme.of(context).textTheme.labelSmall,
               ),
             ],
