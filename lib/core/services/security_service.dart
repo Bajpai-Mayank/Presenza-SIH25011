@@ -1,13 +1,43 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+enum SecurityEvent {
+  screenCaptured,
+  multiWindowEntered,
+  multiWindowExited,
+}
 
 /// Platform security service providing hardware-level screen protection (FLAG_SECURE)
 /// against screenshot capturing and screen recording during sensitive flows.
 class SecurityService {
   static const MethodChannel _channel =
       MethodChannel('com.example.presenza/security');
+      
+  static final StreamController<SecurityEvent> _eventController = 
+      StreamController<SecurityEvent>.broadcast();
+
+  static Stream<SecurityEvent> get securityEvents => _eventController.stream;
+
+  static void initialize() {
+    _channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'onScreenCaptured':
+          _eventController.add(SecurityEvent.screenCaptured);
+          break;
+        case 'onMultiWindowModeChanged':
+          final bool isInMultiWindow = call.arguments as bool? ?? false;
+          if (isInMultiWindow) {
+            _eventController.add(SecurityEvent.multiWindowEntered);
+          } else {
+            _eventController.add(SecurityEvent.multiWindowExited);
+          }
+          break;
+      }
+    });
+  }
 
   /// Enables screenshot and screen recording protection (Android FLAG_SECURE).
   static Future<bool> enableScreenshotProtection() async {
@@ -50,6 +80,19 @@ class SecurityService {
     }
     try {
       final result = await _channel.invokeMethod<bool>('isSecureEnabled');
+      return result ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+  
+  /// Checks if the app is currently in multi-window mode.
+  static Future<bool> isMultiWindowMode() async {
+    if (kIsWeb || !Platform.isAndroid) {
+      return false;
+    }
+    try {
+      final result = await _channel.invokeMethod<bool>('isMultiWindowMode');
       return result ?? false;
     } catch (_) {
       return false;

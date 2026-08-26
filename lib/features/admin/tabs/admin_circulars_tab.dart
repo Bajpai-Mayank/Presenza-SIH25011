@@ -14,6 +14,9 @@ class AdminCircularsTab extends ConsumerWidget {
   void _showCreateCircularModal(BuildContext context, WidgetRef ref) {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
+    final targetCoursesCtrl = TextEditingController();
+    final targetBatchesCtrl = TextEditingController();
+    final targetSemestersCtrl = TextEditingController();
     CircularPriority selectedPriority = CircularPriority.important;
     ActivityCategory selectedCategory = ActivityCategory.notice;
     final formKey = GlobalKey<FormState>();
@@ -112,6 +115,38 @@ class AdminCircularsTab extends ConsumerWidget {
                     maxLines: 4,
                     validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                   ),
+                  const SizedBox(height: 14),
+                  
+                  Text(
+                    'Target Audience (Optional)',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  
+                  AppTextField(
+                    controller: targetCoursesCtrl,
+                    labelText: 'Target Course IDs (comma-separated)',
+                    hintText: 'e.g. course-btech-cse, course-mtech',
+                    prefixIcon: Icons.school_outlined,
+                  ),
+                  const SizedBox(height: 10),
+
+                  AppTextField(
+                    controller: targetBatchesCtrl,
+                    labelText: 'Target Batch IDs (comma-separated)',
+                    hintText: 'e.g. batch-2024-a, batch-2024-b',
+                    prefixIcon: Icons.group_outlined,
+                  ),
+                  const SizedBox(height: 10),
+
+                  AppTextField(
+                    controller: targetSemestersCtrl,
+                    labelText: 'Target Semesters (comma-separated)',
+                    hintText: 'e.g. 1, 2, 4',
+                    prefixIcon: Icons.format_list_numbered_rounded,
+                  ),
                   const SizedBox(height: 24),
 
                   AppButton.primary(
@@ -124,6 +159,16 @@ class AdminCircularsTab extends ConsumerWidget {
                       final user = ref.read(currentUserProvider);
                       final firestoreService = ref.read(firestoreServiceProvider);
                       final now = DateTime.now();
+                      
+                      final courseIds = targetCoursesCtrl.text.isNotEmpty 
+                          ? targetCoursesCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList() 
+                          : <String>[];
+                      final batchIds = targetBatchesCtrl.text.isNotEmpty 
+                          ? targetBatchesCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList() 
+                          : <String>[];
+                      final semesters = targetSemestersCtrl.text.isNotEmpty 
+                          ? targetSemestersCtrl.text.split(',').map((e) => int.tryParse(e.trim())).whereType<int>().toList() 
+                          : <int>[];
 
                       final post = ActivityPostModel(
                         id: const Uuid().v4(),
@@ -136,6 +181,9 @@ class AdminCircularsTab extends ConsumerWidget {
                         isOfficial: true,
                         status: ActivityStatus.approved,
                         organizer: 'Office of Campus Administration',
+                        targetCourseIds: courseIds,
+                        targetBatchIds: batchIds,
+                        targetSemesters: semesters,
                         createdAt: now,
                         updatedAt: now,
                       );

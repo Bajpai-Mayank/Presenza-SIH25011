@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/core/services/security_service.dart';
+import 'package:presenza/core/security/attendance_security_controller.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/providers/app_providers.dart';
@@ -34,12 +35,12 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
   @override
   void initState() {
     super.initState();
-    SecurityService.enableScreenshotProtection();
+    ref.read(attendanceSecurityProvider.notifier).enableSecureMode();
   }
 
   @override
   void dispose() {
-    SecurityService.disableScreenshotProtection();
+    ref.read(attendanceSecurityProvider.notifier).disableSecureMode();
     _roomController.dispose();
     _customSubjectNameController.dispose();
     _customSubjectCodeController.dispose();
@@ -161,267 +162,269 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
     final teacher = ref.watch(teacherProfileProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(batchesProvider);
-        ref.invalidate(subjectsProvider);
-      },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Active Session Display (If Live) ────────────────────────
-            if (activeSession != null && activeSession.isActive) ...[
-              _buildLiveSessionCard(context, activeSession, isDark),
-              const SizedBox(height: 24),
-            ],
+    return SecurityOverlay(
+      child: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(batchesProvider);
+          ref.invalidate(subjectsProvider);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Active Session Display (If Live) ────────────────────────
+              if (activeSession != null && activeSession.isActive) ...[
+                _buildLiveSessionCard(context, activeSession, isDark),
+                const SizedBox(height: 24),
+              ],
 
-            // ── Start New Attendance Session ────────────────────────────
-            Text(
-              'Start Class Attendance',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Select a subject or enter custom details to generate a secure QR code.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-
-            AppCard(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Subject Selection
-                  Text('Subject', style: Theme.of(context).textTheme.labelLarge),
-                  const SizedBox(height: 8),
-
-                  DropdownButtonFormField<String>(
-                    initialValue: _isCustomSubject
-                        ? 'custom'
-                        : (_selectedSubjectId ?? (subjects.isNotEmpty ? subjects.first.id : 'custom')),
-                    decoration: const InputDecoration(
-                      prefixIcon: Icon(Icons.book_outlined, size: 20),
+              // ── Start New Attendance Session ────────────────────────────
+              Text(
+                'Start Class Attendance',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
-                    items: [
-                      ...subjects.map((s) {
-                        return DropdownMenuItem(
-                          value: s.id,
-                          child: Text('${s.code} — ${s.name}', overflow: TextOverflow.ellipsis),
-                        );
-                      }),
-                      const DropdownMenuItem(
-                        value: 'custom',
-                        child: Text('+ Other — Enter Subject Manually',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Select a subject or enter custom details to generate a secure QR code.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+
+              AppCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Subject Selection
+                    Text('Subject', style: Theme.of(context).textTheme.labelLarge),
+                    const SizedBox(height: 8),
+
+                    DropdownButtonFormField<String>(
+                      initialValue: _isCustomSubject
+                          ? 'custom'
+                          : (_selectedSubjectId ?? (subjects.isNotEmpty ? subjects.first.id : 'custom')),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.book_outlined, size: 20),
+                      ),
+                      items: [
+                        ...subjects.map((s) {
+                          return DropdownMenuItem(
+                            value: s.id,
+                            child: Text('${s.code} — ${s.name}', overflow: TextOverflow.ellipsis),
+                          );
+                        }),
+                        const DropdownMenuItem(
+                          value: 'custom',
+                          child: Text('+ Other — Enter Subject Manually',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val == 'custom') {
+                          setState(() {
+                            _isCustomSubject = true;
+                            _selectedSubjectId = null;
+                          });
+                        } else if (val != null) {
+                          setState(() {
+                            _isCustomSubject = false;
+                            _selectedSubjectId = val;
+                          });
+                        }
+                      },
+                    ),
+
+                    if (_isCustomSubject) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: AppTextField(
+                              controller: _customSubjectNameController,
+                              labelText: 'Subject Name',
+                              hintText: 'e.g. Cloud Computing',
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: AppTextField(
+                              controller: _customSubjectCodeController,
+                              labelText: 'Code',
+                              hintText: 'e.g. CS501',
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                    onChanged: (val) {
-                      if (val == 'custom') {
-                        setState(() {
-                          _isCustomSubject = true;
-                          _selectedSubjectId = null;
-                        });
-                      } else if (val != null) {
-                        setState(() {
-                          _isCustomSubject = false;
-                          _selectedSubjectId = val;
-                        });
-                      }
-                    },
-                  ),
+                    const SizedBox(height: 16),
 
-                  if (_isCustomSubject) ...[
-                    const SizedBox(height: 14),
+                    // Batch & Room Row
                     Row(
                       children: [
                         Expanded(
-                          flex: 3,
-                          child: AppTextField(
-                            controller: _customSubjectNameController,
-                            labelText: 'Subject Name',
-                            hintText: 'e.g. Cloud Computing',
+                          child: DropdownButtonFormField<String>(
+                            initialValue: batches.any((b) => b.id == _selectedBatchId)
+                                ? _selectedBatchId
+                                : (batches.isNotEmpty ? batches.first.id : 'batch-2024-a'),
+                            decoration: const InputDecoration(
+                              labelText: 'Target Section',
+                              prefixIcon: Icon(Icons.group_outlined, size: 20),
+                            ),
+                            items: batches.isNotEmpty
+                                ? batches.map((b) {
+                                    return DropdownMenuItem(
+                                      value: b.id,
+                                      child: Text(b.name, overflow: TextOverflow.ellipsis),
+                                    );
+                                  }).toList()
+                                : const [
+                                    DropdownMenuItem(
+                                      value: 'batch-2024-a',
+                                      child: Text('Section A'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'batch-2024-b',
+                                      child: Text('Section B'),
+                                    ),
+                                  ],
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedBatchId = val);
+                            },
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 12),
                         Expanded(
-                          flex: 2,
                           child: AppTextField(
-                            controller: _customSubjectCodeController,
-                            labelText: 'Code',
-                            hintText: 'e.g. CS501',
+                            controller: _roomController,
+                            labelText: 'Room / Hall',
+                            prefixIcon: Icons.meeting_room_outlined,
                           ),
                         ),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Batch & Room Row
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: batches.any((b) => b.id == _selectedBatchId)
-                              ? _selectedBatchId
-                              : (batches.isNotEmpty ? batches.first.id : 'batch-2024-a'),
-                          decoration: const InputDecoration(
-                            labelText: 'Target Section',
-                            prefixIcon: Icon(Icons.group_outlined, size: 20),
-                          ),
-                          items: batches.isNotEmpty
-                              ? batches.map((b) {
-                                  return DropdownMenuItem(
-                                    value: b.id,
-                                    child: Text(b.name, overflow: TextOverflow.ellipsis),
-                                  );
-                                }).toList()
-                              : const [
-                                  DropdownMenuItem(
-                                    value: 'batch-2024-a',
-                                    child: Text('Section A'),
+                    // Expiry Minutes
+                    Text('QR Expiration Time', style: Theme.of(context).textTheme.labelLarge),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [5, 10, 15, 30].map((mins) {
+                        return ChoiceChip(
+                          label: Text('$mins mins'),
+                          selected: _qrExpiryMinutes == mins,
+                          onSelected: (val) {
+                            if (val) setState(() => _qrExpiryMinutes = mins);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Location Geolocation Verification Switch
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Require Geolocation Verification (GPS)'),
+                      subtitle: const Text('Ensure students are physically inside the classroom (~100m)'),
+                      value: _locationRequired,
+                      onChanged: (val) => setState(() => _locationRequired = val),
+                    ),
+                    const SizedBox(height: 16),
+
+                    AppButton.primary(
+                      label: 'Generate Session QR Code',
+                      icon: Icons.qr_code_rounded,
+                      isLoading: _isCreatingSession,
+                      onPressed: _startAttendanceSession,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // ── Past Session History ────────────────────────────────────
+              Text(
+                'Recent Session History',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 12),
+
+              StreamBuilder<List<AttendanceSessionModel>>(
+                stream: ref.read(firestoreServiceProvider).streamSessionHistory(teacher?.user.id ?? ''),
+                builder: (context, snapshot) {
+                  final history = snapshot.data ?? [];
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CardShimmer(height: 80);
+                  }
+                  if (history.isEmpty) {
+                    return const EmptyStateWidget(
+                      icon: Icons.history_rounded,
+                      title: 'No Past Sessions',
+                      subtitle: 'Sessions you start will be logged here with attendance records.',
+                    );
+                  }
+
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: history.take(5).length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final item = history[index];
+                      return AppCard(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: isDark ? AppColors.elevatedDark : AppColors.slate100,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.check_circle_outline, color: AppColors.primary, size: 20),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.subjectName ?? 'Subject',
+                                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                   ),
-                                  DropdownMenuItem(
-                                    value: 'batch-2024-b',
-                                    child: Text('Section B'),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${DateFormat('d MMM, hh:mm a').format(item.startTime)} • Room ${item.room ?? "A"}',
+                                    style: Theme.of(context).textTheme.bodySmall,
                                   ),
                                 ],
-                          onChanged: (val) {
-                            if (val != null) setState(() => _selectedBatchId = val);
-                          },
+                              ),
+                            ),
+                            StatusBadge(
+                              label: item.isActive ? 'Active' : 'Closed',
+                              color: item.isActive ? AppColors.success : AppColors.slate400,
+                              small: true,
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: AppTextField(
-                          controller: _roomController,
-                          labelText: 'Room / Hall',
-                          prefixIcon: Icons.meeting_room_outlined,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Expiry Minutes
-                  Text('QR Expiration Time', style: Theme.of(context).textTheme.labelLarge),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [5, 10, 15, 30].map((mins) {
-                      return ChoiceChip(
-                        label: Text('$mins mins'),
-                        selected: _qrExpiryMinutes == mins,
-                        onSelected: (val) {
-                          if (val) setState(() => _qrExpiryMinutes = mins);
-                        },
                       );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Location Geolocation Verification Switch
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Require Geolocation Verification (GPS)'),
-                    subtitle: const Text('Ensure students are physically inside the classroom (~100m)'),
-                    value: _locationRequired,
-                    onChanged: (val) => setState(() => _locationRequired = val),
-                  ),
-                  const SizedBox(height: 16),
-
-                  AppButton.primary(
-                    label: 'Generate Session QR Code',
-                    icon: Icons.qr_code_rounded,
-                    isLoading: _isCreatingSession,
-                    onPressed: _startAttendanceSession,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // ── Past Session History ────────────────────────────────────
-            Text(
-              'Recent Session History',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-            const SizedBox(height: 12),
-
-            StreamBuilder<List<AttendanceSessionModel>>(
-              stream: ref.read(firestoreServiceProvider).streamSessionHistory(teacher?.user.id ?? ''),
-              builder: (context, snapshot) {
-                final history = snapshot.data ?? [];
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CardShimmer(height: 80);
-                }
-                if (history.isEmpty) {
-                  return const EmptyStateWidget(
-                    icon: Icons.history_rounded,
-                    title: 'No Past Sessions',
-                    subtitle: 'Sessions you start will be logged here with attendance records.',
+                    },
                   );
-                }
-
-                return ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: history.take(5).length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final item = history[index];
-                    return AppCard(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: isDark ? AppColors.elevatedDark : AppColors.slate100,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.check_circle_outline, color: AppColors.primary, size: 20),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.subjectName ?? 'Subject',
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${DateFormat('d MMM, hh:mm a').format(item.startTime)} • Room ${item.room ?? "A"}',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                          StatusBadge(
-                            label: item.isActive ? 'Active' : 'Closed',
-                            color: item.isActive ? AppColors.success : AppColors.slate400,
-                            small: true,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-          ],
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );

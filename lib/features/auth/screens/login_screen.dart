@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:presenza/config/theme/app_colors.dart';
-import 'package:presenza/core/enums/user_role.dart';
-import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/providers/app_providers.dart';
 
@@ -42,123 +40,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
-  }
-
-  /// 1-Click Fast Access: Signs in or automatically provisions demo test accounts on Firebase.
-  Future<void> _quickTestLogin(UserRole role) async {
-    setState(() => _isLoading = true);
-    final messenger = ScaffoldMessenger.of(context);
-
-    String email;
-    String name;
-    const password = 'Password@123';
-
-    switch (role) {
-      case UserRole.student:
-        email = 'student@presenza.edu';
-        name = 'Alex Rivera';
-        break;
-      case UserRole.teacher:
-        email = 'teacher@presenza.edu';
-        name = 'Dr. Robert Lang';
-        break;
-      case UserRole.admin:
-        email = 'admin@presenza.edu';
-        name = 'Campus Administrator';
-        break;
-    }
-
-    _emailController.text = email;
-    _passwordController.text = password;
-
-    final authService = ref.read(authServiceProvider);
-    final firestoreService = ref.read(firestoreServiceProvider);
-
-    try {
-      // 1. Try standard sign in
-      final signinResult = await authService.signIn(
-        email: email,
-        password: password,
-      );
-
-      if (signinResult.success && signinResult.user != null) {
-        await ref.read(authStatusProvider.notifier).refreshProfile();
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-
-      // 2. If account does not exist, auto-provision real account on Firebase
-      final createResult = await authService.createUser(
-        email: email,
-        password: password,
-      );
-
-      if (createResult.success && createResult.user != null) {
-        final uid = createResult.user!.uid;
-        final now = DateTime.now();
-
-        final userModel = UserModel(
-          id: uid,
-          email: email,
-          name: name,
-          role: role,
-          bio: role == UserRole.student
-              ? 'Computer Science Undergraduate & Open Source Enthusiast'
-              : 'Senior Professor of Computer Science & Engineering',
-          department: 'Computer Science & Engineering',
-          createdAt: now,
-          updatedAt: now,
-        );
-        await firestoreService.saveUserModel(userModel);
-
-        if (role == UserRole.student) {
-          final studentModel = StudentModel(
-            user: userModel,
-            studentId: 'STU-2024-001',
-            courseId: 'course-btech-cse',
-            batchId: 'batch-2024-a',
-            semester: 4,
-            enrollmentDate: now,
-          );
-          await firestoreService.saveStudentProfile(studentModel);
-        } else if (role == UserRole.teacher) {
-          final teacherModel = TeacherModel(
-            user: userModel,
-            employeeId: 'EMP-CSE-101',
-            departmentId: 'dept-cse',
-            subjectIds: ['sub-cs401', 'sub-cs402'],
-          );
-          await firestoreService.saveTeacherProfile(teacherModel);
-        }
-
-        // Seed default academic records & sample posts
-        await firestoreService.seedInitialAcademicData();
-
-        await ref.read(authStatusProvider.notifier).refreshProfile();
-        if (mounted) setState(() => _isLoading = false);
-        return;
-      }
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(signinResult.errorMessage ?? 'Unable to connect to Firebase.'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Authentication error: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -295,68 +176,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             label: 'Sign In',
                             isLoading: _isLoading,
                             onPressed: _handleLogin,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Demo Roles Quick Access
-                    AppCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.flash_on_rounded,
-                                size: 16,
-                                color: isDark ? AppColors.secondaryDark : AppColors.secondary,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Quick Demo Sign-In',
-                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                      color: isDark ? AppColors.secondaryDark : AppColors.secondary,
-                                    ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isLoading ? null : () => _quickTestLogin(UserRole.student),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                  ),
-                                  child: const Text('Student', style: TextStyle(fontSize: 13)),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isLoading ? null : () => _quickTestLogin(UserRole.teacher),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                  ),
-                                  child: const Text('Teacher', style: TextStyle(fontSize: 13)),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _isLoading ? null : () => _quickTestLogin(UserRole.admin),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
-                                  ),
-                                  child: const Text('Admin', style: TextStyle(fontSize: 13)),
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),

@@ -7,6 +7,7 @@ import 'package:presenza/features/auth/screens/login_screen.dart';
 import 'package:presenza/features/auth/screens/register_screen.dart';
 import 'package:presenza/features/auth/screens/forgot_password_screen.dart';
 import 'package:presenza/features/auth/screens/no_profile_screen.dart';
+import 'package:presenza/shared/screens/help_support_screen.dart';
 
 // Shell & Feature imports
 import 'package:presenza/features/student/screens/student_shell.dart';
@@ -119,6 +120,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin',
         builder: (context, state) => const AdminShell(),
+      ),
+      GoRoute(
+        path: '/help',
+        builder: (context, state) => const HelpSupportScreen(),
       ),
     ],
   );

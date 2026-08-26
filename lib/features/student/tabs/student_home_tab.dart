@@ -6,6 +6,7 @@ import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/attendance_status.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class StudentHomeTab extends ConsumerWidget {
   final VoidCallback onNavigateToAttendance;
@@ -22,6 +23,8 @@ class StudentHomeTab extends ConsumerWidget {
     final student = ref.watch(studentProfileProvider);
     final overallAttendance = ref.watch(overallAttendanceProvider);
     final subjects = ref.watch(subjectAttendanceProvider);
+    final enrolledCountAsync = ref.watch(enrolledStudentsCountProvider);
+    final enrolledCount = enrolledCountAsync.valueOrNull ?? 0;
     final scheduleAsync = ref.watch(todayScheduleProvider);
     final schedule = scheduleAsync.valueOrNull ?? [];
     final activitiesAsync = ref.watch(activitiesStreamProvider);
@@ -98,6 +101,19 @@ class StudentHomeTab extends ConsumerWidget {
                               fontWeight: FontWeight.w600,
                             ),
                       ),
+                      if (enrolledCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '$enrolledCount students in your batch',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: isDark
+                                      ? AppColors.textMutedDark
+                                      : AppColors.textMutedLight,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -454,7 +470,7 @@ class StudentHomeTab extends ConsumerWidget {
                 },
               ),
             const SizedBox(height: 20),
-          ],
+          ].animate(interval: 50.ms).fade(duration: 300.ms).slideY(begin: 0.05, duration: 300.ms),
         ),
       ),
     );

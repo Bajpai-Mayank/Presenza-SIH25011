@@ -25,6 +25,12 @@ class AppTheme {
           onError: AppColors.white,
           outline: AppColors.cardBorderLight,
         ),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+          },
+        ),
         textTheme: _buildTextTheme(Brightness.light),
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.backgroundLight,
@@ -184,6 +190,12 @@ class AppTheme {
           error: AppColors.error,
           onError: AppColors.white,
           outline: AppColors.cardBorderDark,
+        ),
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+            TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+          },
         ),
         textTheme: _buildTextTheme(Brightness.dark),
         appBarTheme: const AppBarTheme(

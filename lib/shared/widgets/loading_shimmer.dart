@@ -17,6 +17,7 @@ class LoadingShimmer extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: baseColor,
       highlightColor: highlightColor,
+      period: const Duration(milliseconds: 1000),
       child: child,
     );
   }

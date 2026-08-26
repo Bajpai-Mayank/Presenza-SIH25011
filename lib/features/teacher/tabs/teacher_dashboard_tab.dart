@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/features/teacher/widgets/attendance_statistics_view.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class TeacherDashboardTab extends ConsumerWidget {
   final VoidCallback onNavigateToAttendance;
@@ -317,6 +319,10 @@ class TeacherDashboardTab extends ConsumerWidget {
             const SizedBox(height: 24),
           ],
 
+          // ── Attendance Statistics ────────────────────────────────────
+          const AttendanceStatisticsView(),
+          const SizedBox(height: 24),
+
           // ── Assigned Subjects ───────────────────────────────────────
           Text(
             'My Academic Subjects',
@@ -381,7 +387,7 @@ class TeacherDashboardTab extends ConsumerWidget {
               },
             ),
           const SizedBox(height: 20),
-        ],
+        ].animate(interval: 50.ms).fade(duration: 300.ms).slideY(begin: 0.05, duration: 300.ms),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/user_role.dart';
@@ -458,9 +459,7 @@ class StudentProfileTab extends ConsumerWidget {
                   subtitle: const Text('Presenza SIH25011 documentation & FAQs'),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Presenza v2.0.0 — SIH25011 Smart Attendance & Activity Platform')),
-                    );
+                    context.push('/help');
                   },
                 ),
                 const Divider(height: 1),

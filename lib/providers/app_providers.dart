@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,10 +8,12 @@ import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/data/models/user_model.dart';
+import 'package:presenza/data/models/user_session_model.dart';
 import 'package:presenza/data/models/auth_state.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/data/services/auth_service.dart';
+import 'package:uuid/uuid.dart';
 
 // ══════════════════════════════════════════════════════════════════════
 // THEME (System, Light, Dark with Persistence)
@@ -76,8 +79,11 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
     _init();
   }
 
+  StreamSubscription? _sessionSubscription;
+
   void _init() {
     FirebaseAuth.instance.authStateChanges().listen((user) async {
+      _sessionSubscription?.cancel();
       if (user == null) {
         state = const AuthState.unauthenticated();
       } else {
@@ -86,6 +92,20 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
           final userModel = await firestoreService.getUserModel(user.uid);
           if (userModel != null) {
             state = AuthState.authenticated(userModel);
+
+            // Listen to active session changes
+            final prefs = await SharedPreferences.getInstance();
+            final activeSessionId = prefs.getString('active_session_id');
+            if (activeSessionId != null) {
+              _sessionSubscription = firestoreService
+                  .streamUserSession(activeSessionId)
+                  .listen((session) {
+                if (session == null || !session.isActive) {
+                  // Session invalidated by another login
+                  FirebaseAuth.instance.signOut();
+                }
+              });
+            }
           } else {
             state = const AuthState.profileMissing();
           }
@@ -148,7 +168,22 @@ class AuthNotifier extends StateNotifier<UserModel?> {
   Future<String?> login(String email, String password) async {
     final authService = _ref.read(authServiceProvider);
     final result = await authService.signIn(email: email, password: password);
-    if (result.success) {
+    if (result.success && result.user != null) {
+      final firestoreService = _ref.read(firestoreServiceProvider);
+      final sessionId = const Uuid().v4();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('active_session_id', sessionId);
+
+      final session = UserSessionModel(
+        sessionId: sessionId,
+        userId: result.user!.uid,
+        deviceId: 'device-id-placeholder', // Could integrate device_info_plus later
+        loginAt: DateTime.now(),
+        isActive: true,
+      );
+      await firestoreService.createUserSession(session);
+      await firestoreService.invalidateOtherSessions(result.user!.uid, sessionId);
+
       return null;
     }
     return result.errorMessage;
@@ -211,6 +246,13 @@ final studentAttendanceRecordsProvider =
   if (student == null) return Stream.value([]);
   final firestoreService = ref.watch(firestoreServiceProvider);
   return firestoreService.streamStudentAttendanceRecords(student.user.id);
+});
+
+final enrolledStudentsCountProvider = FutureProvider<int>((ref) async {
+  final student = ref.watch(studentProfileProvider);
+  if (student == null) return 0;
+  final firestore = ref.watch(firestoreServiceProvider);
+  return firestore.getEnrolledStudentCount(student.batchId);
 });
 
 final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {

@@ -84,7 +84,8 @@ service cloud.firestore {
     match /attendance_records/{id} {
       allow read: if signedIn();
       allow create: if signedIn() && (
-        request.resource.data.studentId == request.auth.uid ||
+        (request.resource.data.studentId == request.auth.uid && 
+         id == request.resource.data.attendanceSessionId + '_' + request.auth.uid) ||
         isTeacherOrAdmin()
       );
       allow update, delete: if isTeacherOrAdmin();

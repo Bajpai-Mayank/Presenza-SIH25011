@@ -114,6 +114,18 @@ class _TeacherStudentsTabState extends ConsumerState<TeacherStudentsTab> {
                 child: Text(student.user.bio!, style: Theme.of(context).textTheme.bodyMedium),
               ),
             ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton.primary(
+                label: 'Correct Attendance',
+                icon: Icons.edit_calendar_rounded,
+                onPressed: () {
+                  Navigator.pop(context);
+                  AttendanceCorrectionModal.show(context, student);
+                },
+              ),
+            ),
           ],
         ),
       ),

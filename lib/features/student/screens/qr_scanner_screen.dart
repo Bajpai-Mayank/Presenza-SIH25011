@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/services/security_service.dart';
+import 'package:presenza/core/security/attendance_security_controller.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/data/services/location_service.dart';
@@ -30,7 +31,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   @override
   void initState() {
     super.initState();
-    SecurityService.enableScreenshotProtection();
+    ref.read(attendanceSecurityProvider.notifier).enableSecureMode();
     _cameraController = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
@@ -39,7 +40,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
   @override
   void dispose() {
-    SecurityService.disableScreenshotProtection();
+    ref.read(attendanceSecurityProvider.notifier).disableSecureMode();
     _cameraController?.dispose();
     super.dispose();
   }
@@ -198,101 +199,103 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan Attendance QR'),
-        actions: [
-          if (!_scanComplete && !_isProcessing)
-            IconButton(
-              icon: const Icon(Icons.keyboard_outlined),
-              tooltip: 'Enter code manually',
-              onPressed: _showManualEntryDialog,
-            ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              Expanded(
-                child: Center(
-                  child: AppCard(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 260,
-                          height: 260,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: _isSuccess
-                                  ? AppColors.success
-                                  : (_statusMessage.contains('Failed')
-                                      ? AppColors.error
-                                      : AppColors.primary),
-                              width: 2,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: _buildScannerArea(isDark),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          _statusMessage,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w800,
+    return SecurityOverlay(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Scan Attendance QR'),
+          actions: [
+            if (!_scanComplete && !_isProcessing)
+              IconButton(
+                icon: const Icon(Icons.keyboard_outlined),
+                tooltip: 'Enter code manually',
+                onPressed: _showManualEntryDialog,
+              ),
+          ],
+        ),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: AppCard(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 260,
+                            height: 260,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
                                 color: _isSuccess
                                     ? AppColors.success
                                     : (_statusMessage.contains('Failed')
                                         ? AppColors.error
-                                        : null),
+                                        : AppColors.primary),
+                                width: 2,
                               ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _detailMessage,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: _buildScannerArea(isDark),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            _statusMessage,
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: _isSuccess
+                                      ? AppColors.success
+                                      : (_statusMessage.contains('Failed')
+                                          ? AppColors.error
+                                          : null),
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _detailMessage,
+                            style: Theme.of(context).textTheme.bodySmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              if (_scanComplete || _statusMessage.contains('Failed'))
-                Row(
-                  children: [
-                    if (_statusMessage.contains('Failed'))
+                const SizedBox(height: 16),
+                if (_scanComplete || _statusMessage.contains('Failed'))
+                  Row(
+                    children: [
+                      if (_statusMessage.contains('Failed'))
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setState(() {
+                                _statusMessage = 'Point Camera at Classroom QR';
+                                _detailMessage = 'Align the QR code within the highlighted viewfinder.';
+                                _isProcessing = false;
+                                _scanComplete = false;
+                              });
+                            },
+                            child: const Text('Try Again'),
+                          ),
+                        ),
+                      if (_statusMessage.contains('Failed')) const SizedBox(width: 12),
                       Expanded(
-                        child: OutlinedButton(
-                          onPressed: () {
-                            setState(() {
-                              _statusMessage = 'Point Camera at Classroom QR';
-                              _detailMessage = 'Align the QR code within the highlighted viewfinder.';
-                              _isProcessing = false;
-                              _scanComplete = false;
-                            });
-                          },
-                          child: const Text('Try Again'),
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Done / Return'),
                         ),
                       ),
-                    if (_statusMessage.contains('Failed')) const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Done / Return'),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
