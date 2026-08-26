@@ -8,6 +8,12 @@ enum AuthStatus {
   /// No user is signed in.
   unauthenticated,
 
+  /// User is currently signing in or registering.
+  authenticating,
+
+  /// User is signed in via Firebase, currently fetching Firestore profile.
+  fetchingProfile,
+
   /// User is signed in and their Firestore profile has been loaded.
   authenticated,
 
@@ -40,6 +46,18 @@ class AuthState {
   /// No user signed in.
   const AuthState.unauthenticated()
       : status = AuthStatus.unauthenticated,
+        user = null,
+        errorMessage = null;
+
+  /// User is authenticating.
+  const AuthState.authenticating()
+      : status = AuthStatus.authenticating,
+        user = null,
+        errorMessage = null;
+
+  /// Fetching user profile.
+  const AuthState.fetchingProfile()
+      : status = AuthStatus.fetchingProfile,
         user = null,
         errorMessage = null;
 

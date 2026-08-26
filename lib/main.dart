@@ -9,20 +9,7 @@ import 'app.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables and initialize Supabase Backup
-  try {
-    await dotenv.load(fileName: ".env");
-    await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL'] ?? '',
-      anonKey: dotenv.env['SUPABASE_PUBLISHABLE_KEY'] ?? '',
-    );
-    debugPrint('Supabase backup initialized successfully.');
-  } catch (e) {
-    debugPrint('Supabase initialization failed: $e');
-  }
-
-  // Firebase initialization is required for production.
-  // If it fails, the app cannot proceed safely.
+  // Firebase initialization is REQUIRED.
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -30,7 +17,35 @@ void main() async {
     debugPrint('Firebase initialized successfully.');
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
-    // AuthStatusNotifier will detect the error state and display an error screen with retry option.
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text(
+              'Failed to initialize the application.\nPlease check your connection or contact support.\nError: $e',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+
+  // Load environment variables and initialize Supabase Backup gracefully
+  try {
+    await dotenv.load(fileName: ".env");
+    final supabaseUrl = dotenv.env['SUPABASE_URL'];
+    final supabaseKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'];
+    if (supabaseUrl != null && supabaseUrl.isNotEmpty && supabaseKey != null && supabaseKey.isNotEmpty) {
+      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+      debugPrint('Supabase backup initialized successfully.');
+    } else {
+      debugPrint('Supabase env vars missing. Skipping backup initialization.');
+    }
+  } catch (e) {
+    debugPrint('Supabase initialization skipped: $e');
   }
 
   runApp(

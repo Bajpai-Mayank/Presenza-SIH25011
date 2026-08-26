@@ -17,6 +17,7 @@ export 'filter_bottom_sheet.dart';
 export 'attendance_calendar.dart';
 export 'attendance_correction_modal.dart';
 export 'security_overlay.dart';
+export 'wavy_header.dart';
 /// Legacy GlassCard adapter: renders a sleek AppCard with Presenza V2 theme.
 class GlassCard extends StatelessWidget {
   final Widget child;

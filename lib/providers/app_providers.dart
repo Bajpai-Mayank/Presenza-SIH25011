@@ -63,60 +63,127 @@ final firestoreServiceProvider =
 // AUTH
 // ══════════════════════════════════════════════════════════════════════
 
-final authStateProvider =
-    StateNotifierProvider<AuthNotifier, UserModel?>((ref) {
-  return AuthNotifier(ref);
-});
-
 final authStatusProvider =
     StateNotifierProvider<AuthStatusNotifier, AuthState>((ref) {
   return AuthStatusNotifier(ref);
 });
 
+final authStateProvider = Provider<UserModel?>((ref) {
+  return ref.watch(authStatusProvider).user;
+});
+
 class AuthStatusNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
+  StreamSubscription? _authSubscription;
+  StreamSubscription? _sessionSubscription;
+
   AuthStatusNotifier(this._ref) : super(const AuthState.initializing()) {
     _init();
   }
 
-  StreamSubscription? _sessionSubscription;
-
   void _init() {
-    FirebaseAuth.instance.authStateChanges().listen((user) async {
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) async {
       _sessionSubscription?.cancel();
       if (user == null) {
         state = const AuthState.unauthenticated();
       } else {
+        state = const AuthState.fetchingProfile();
         try {
           final firestoreService = _ref.read(firestoreServiceProvider);
-          final userModel = await firestoreService.getUserModel(user.uid);
+          final userModel = await firestoreService.getUserModel(user.uid).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => throw TimeoutException('Profile fetch timeout'),
+          );
+          
           if (userModel != null) {
             state = AuthState.authenticated(userModel);
 
-            // Listen to active session changes
-            final prefs = await SharedPreferences.getInstance();
-            final activeSessionId = prefs.getString('active_session_id');
-            if (activeSessionId != null) {
-              _sessionSubscription = firestoreService
-                  .streamUserSession(activeSessionId)
-                  .listen((session) {
-                if (session == null || !session.isActive) {
-                  // Session invalidated by another login
-                  FirebaseAuth.instance.signOut();
-                }
-              });
-            }
+            // Start session monitor in background, do not block
+            _monitorSession(firestoreService);
           } else {
             state = const AuthState.profileMissing();
           }
         } catch (e) {
           debugPrint('AuthStatusNotifier: Failed to load profile: $e');
           state = AuthState.error(
-            'Failed to load your profile. Please try again.',
+            'Failed to load your profile. Please check your connection and try again.',
           );
         }
       }
     });
+  }
+
+  void _monitorSession(FirestoreService firestoreService) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final activeSessionId = prefs.getString('active_session_id');
+      if (activeSessionId != null) {
+        _sessionSubscription = firestoreService
+            .streamUserSession(activeSessionId)
+            .listen((session) {
+          if (session == null || !session.isActive) {
+            // Session invalidated by another login
+            FirebaseAuth.instance.signOut();
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Session monitor error: $e');
+    }
+  }
+
+  Future<String?> login(String email, String password) async {
+    state = const AuthState.authenticating();
+    final authService = _ref.read(authServiceProvider);
+    
+    try {
+      // Use timeout for auth sign in
+      final result = await authService.signIn(email: email, password: password).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => AuthResult.error('Login timed out. Check your internet connection.'),
+      );
+      
+      if (result.success && result.user != null) {
+        // The authStateChanges stream will naturally pick up the user, 
+        // but we can proactively do session bookkeeping in the background
+        // so it doesn't block the UI transition.
+        unawaited(_performSessionBookkeeping(result.user!.uid));
+        return null; // success
+      }
+      state = const AuthState.unauthenticated(); // Reset on error
+      return result.errorMessage;
+    } catch (e) {
+      state = const AuthState.unauthenticated();
+      return 'An unexpected error occurred: $e';
+    }
+  }
+
+  Future<void> _performSessionBookkeeping(String uid) async {
+    try {
+      final firestoreService = _ref.read(firestoreServiceProvider);
+      final sessionId = const Uuid().v4();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('active_session_id', sessionId);
+
+      final session = UserSessionModel(
+        sessionId: sessionId,
+        userId: uid,
+        deviceId: 'device-id-placeholder', 
+        loginAt: DateTime.now(),
+        isActive: true,
+      );
+      // Execute in parallel
+      await Future.wait([
+        firestoreService.createUserSession(session),
+        firestoreService.invalidateOtherSessions(uid, sessionId),
+      ]);
+    } catch (e) {
+      debugPrint('Session bookkeeping failed: $e');
+    }
+  }
+
+  Future<void> logout() async {
+    await FirebaseAuth.instance.signOut();
   }
 
   Future<void> refreshProfile() async {
@@ -125,6 +192,7 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       state = const AuthState.unauthenticated();
       return;
     }
+    state = const AuthState.fetchingProfile();
     try {
       final firestoreService = _ref.read(firestoreServiceProvider);
       final userModel = await firestoreService.getUserModel(user.uid);
@@ -137,64 +205,18 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       state = AuthState.error('Failed to refresh profile: $e');
     }
   }
-}
-
-class AuthNotifier extends StateNotifier<UserModel?> {
-  final Ref _ref;
-  AuthNotifier(this._ref) : super(null) {
-    _init();
-  }
-
-  void _init() {
-    FirebaseAuth.instance.authStateChanges().listen((user) async {
-      if (user == null) {
-        state = null;
-      } else {
-        try {
-          final firestoreService = _ref.read(firestoreServiceProvider);
-          final userModel = await firestoreService.getUserModel(user.uid);
-          if (userModel != null) {
-            state = userModel;
-            return;
-          }
-        } catch (e) {
-          debugPrint('AuthNotifier: Firestore getUserModel failed: $e');
-        }
-        state = null;
-      }
-    });
-  }
-
-  Future<String?> login(String email, String password) async {
-    final authService = _ref.read(authServiceProvider);
-    final result = await authService.signIn(email: email, password: password);
-    if (result.success && result.user != null) {
-      final firestoreService = _ref.read(firestoreServiceProvider);
-      final sessionId = const Uuid().v4();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('active_session_id', sessionId);
-
-      final session = UserSessionModel(
-        sessionId: sessionId,
-        userId: result.user!.uid,
-        deviceId: 'device-id-placeholder', // Could integrate device_info_plus later
-        loginAt: DateTime.now(),
-        isActive: true,
-      );
-      await firestoreService.createUserSession(session);
-      await firestoreService.invalidateOtherSessions(result.user!.uid, sessionId);
-
-      return null;
-    }
-    return result.errorMessage;
-  }
-
-  Future<void> logout() async {
-    await FirebaseAuth.instance.signOut();
-  }
 
   void updateLocalUser(UserModel updatedUser) {
-    state = updatedUser;
+    if (state.isAuthenticated) {
+      state = AuthState.authenticated(updatedUser);
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _sessionSubscription?.cancel();
+    super.dispose();
   }
 }
 

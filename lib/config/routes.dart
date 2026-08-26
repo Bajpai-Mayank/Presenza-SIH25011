@@ -28,25 +28,34 @@ final routerProvider = Provider<GoRouter>((ref) {
           currentLoc == '/register';
       final isNoProfileRoute = currentLoc == '/no-profile';
 
-      // While auth is initializing, stay on login
-      if (authStatus.isInitializing) {
+      // While auth is in progress (initializing, authenticating, fetchingProfile), stay where we are.
+      // If we are navigating to an internal route, let it go to login for safety.
+      if (authStatus.status == AuthStatus.initializing || 
+          authStatus.status == AuthStatus.authenticating || 
+          authStatus.status == AuthStatus.fetchingProfile) {
+        if (!isAuthRoute && !isNoProfileRoute) return '/login';
+        return null;
+      }
+
+      // Error state: go back to login unless already on auth routes
+      if (authStatus.status == AuthStatus.error) {
         return isAuthRoute ? null : '/login';
       }
 
-      // Profile missing — user authenticated but no Firestore profile
+      // Profile missing
       if (authStatus.status == AuthStatus.profileMissing) {
         return isNoProfileRoute ? null : '/no-profile';
       }
 
-      // Not authenticated — redirect to login
-      final loggedIn = authState != null;
-      if (!loggedIn) {
+      // Not authenticated
+      if (authStatus.status == AuthStatus.unauthenticated || authStatus.user == null) {
         return isAuthRoute ? null : '/login';
       }
 
       // Authenticated — redirect away from auth routes
+      final user = authStatus.user!;
       if (isAuthRoute || isNoProfileRoute) {
-        switch (authState.role) {
+        switch (user.role) {
           case UserRole.student:
             return '/student';
           case UserRole.teacher:
@@ -56,34 +65,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
       }
 
-      // Role-based route protection:
-      if (currentLoc.startsWith('/admin') &&
-          authState.role != UserRole.admin) {
-        switch (authState.role) {
-          case UserRole.student:
-            return '/student';
-          case UserRole.teacher:
-            return '/teacher';
-          case UserRole.admin:
-            return null;
-        }
+      // Role-based route protection
+      if (currentLoc.startsWith('/admin') && user.role != UserRole.admin) {
+        return user.role == UserRole.teacher ? '/teacher' : '/student';
       }
-
-      if (currentLoc.startsWith('/teacher') &&
-          authState.role == UserRole.student) {
+      if (currentLoc.startsWith('/teacher') && user.role == UserRole.student) {
         return '/student';
       }
-
-      if (currentLoc.startsWith('/student') &&
-          authState.role != UserRole.student) {
-        switch (authState.role) {
-          case UserRole.teacher:
-            return '/teacher';
-          case UserRole.admin:
-            return '/admin';
-          case UserRole.student:
-            return null;
-        }
+      if (currentLoc.startsWith('/student') && user.role != UserRole.student) {
+        return user.role == UserRole.teacher ? '/teacher' : '/admin';
       }
 
       return null;

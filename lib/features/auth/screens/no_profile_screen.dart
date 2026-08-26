@@ -1,73 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:presenza/config/theme/app_colors.dart';
-import 'package:presenza/core/enums/user_role.dart';
-import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/providers/app_providers.dart';
 
 /// Shown when a user is authenticated via Firebase Auth but
 /// their Firestore profile has not been initialized.
-class NoProfileScreen extends ConsumerStatefulWidget {
+class NoProfileScreen extends ConsumerWidget {
   const NoProfileScreen({super.key});
 
   @override
-  ConsumerState<NoProfileScreen> createState() => _NoProfileScreenState();
-}
-
-class _NoProfileScreenState extends ConsumerState<NoProfileScreen> {
-  bool _isAutoProvisioning = false;
-
-  Future<void> _autoInitializeStudentProfile() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    setState(() => _isAutoProvisioning = true);
-    final firestoreService = ref.read(firestoreServiceProvider);
-
-    try {
-      final now = DateTime.now();
-      final userModel = UserModel(
-        id: user.uid,
-        email: user.email ?? 'student@presenza.edu',
-        name: user.displayName ?? 'Student Scholar',
-        role: UserRole.student,
-        bio: 'Computer Science Undergraduate',
-        department: 'Computer Science & Engineering',
-        createdAt: now,
-        updatedAt: now,
-      );
-      await firestoreService.saveUserModel(userModel);
-
-      final studentModel = StudentModel(
-        user: userModel,
-        studentId: 'STU-${user.uid.substring(0, 6).toUpperCase()}',
-        courseId: 'course-btech-cse',
-        batchId: 'batch-2024-a',
-        semester: 4,
-        enrollmentDate: now,
-      );
-      await firestoreService.saveStudentProfile(studentModel);
-      await firestoreService.seedInitialAcademicData();
-
-      await ref.read(authStatusProvider.notifier).refreshProfile();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to set up profile: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isAutoProvisioning = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -98,7 +41,7 @@ class _NoProfileScreenState extends ConsumerState<NoProfileScreen> {
                   ),
                   const SizedBox(height: 20),
                   Text(
-                    'Setup Profile',
+                    'Profile Not Found',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.5,
@@ -106,7 +49,7 @@ class _NoProfileScreenState extends ConsumerState<NoProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Your account authentication was verified, but your academic profile record is not yet linked.',
+                    'Your account authentication was verified, but your academic profile record is missing or deleted.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: isDark ? AppColors.textMutedDark : AppColors.textSecondaryLight,
@@ -123,9 +66,9 @@ class _NoProfileScreenState extends ConsumerState<NoProfileScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Icon(
-                              Icons.auto_awesome_rounded,
+                              Icons.admin_panel_settings_outlined,
                               size: 22,
-                              color: AppColors.primary,
+                              color: AppColors.error,
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -133,26 +76,20 @@ class _NoProfileScreenState extends ConsumerState<NoProfileScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '1-Tap Student Profile Creation',
+                                    'Contact Administrator',
                                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                           fontWeight: FontWeight.w700,
                                         ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Initialize your default student dashboard and enroll in B.Tech CSE subjects immediately.',
+                                    'Please contact the university administration to configure your profile manually. Auto-provisioning is disabled for security reasons.',
                                     style: Theme.of(context).textTheme.bodySmall,
                                   ),
                                 ],
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 16),
-                        AppButton.primary(
-                          label: 'Initialize Student Profile',
-                          isLoading: _isAutoProvisioning,
-                          onPressed: _autoInitializeStudentProfile,
                         ),
                       ],
                     ),
@@ -171,7 +108,7 @@ class _NoProfileScreenState extends ConsumerState<NoProfileScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextButton(
-                          onPressed: () => ref.read(authStateProvider.notifier).logout(),
+                          onPressed: () => ref.read(authStatusProvider.notifier).logout(),
                           child: const Text('Sign Out'),
                         ),
                       ),

@@ -96,6 +96,19 @@ class FirestoreService {
     await saveUserModel(student.user);
     await _db.collection('students').doc(student.user.id).set(student.toJson());
   }
+  
+  /// Registers a student profile atomically along with their base user and welcome notification.
+  Future<void> registerStudentAtomically({
+    required UserModel user,
+    required StudentModel student,
+    required NotificationModel notification,
+  }) async {
+    final batch = _db.batch();
+    batch.set(_db.collection('users').doc(user.id), user.toJson());
+    batch.set(_db.collection('students').doc(user.id), student.toJson());
+    batch.set(_db.collection('notifications').doc(notification.id), notification.toJson());
+    await batch.commit();
+  }
 
   /// Fetches a student profile by UID.
   Future<StudentModel?> getStudentProfile(String uid) async {
@@ -108,6 +121,19 @@ class FirestoreService {
   Future<void> saveTeacherProfile(TeacherModel teacher) async {
     await saveUserModel(teacher.user);
     await _db.collection('teachers').doc(teacher.user.id).set(teacher.toJson());
+  }
+
+  /// Registers a teacher profile atomically along with their base user and welcome notification.
+  Future<void> registerTeacherAtomically({
+    required UserModel user,
+    required TeacherModel teacher,
+    required NotificationModel notification,
+  }) async {
+    final batch = _db.batch();
+    batch.set(_db.collection('users').doc(user.id), user.toJson());
+    batch.set(_db.collection('teachers').doc(user.id), teacher.toJson());
+    batch.set(_db.collection('notifications').doc(notification.id), notification.toJson());
+    await batch.commit();
   }
 
   /// Fetches a teacher profile by UID.
