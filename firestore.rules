@@ -1,3 +1,9 @@
+// =========================================================================
+// PRESENZA CLOUD FIRESTORE SECURITY RULES
+// Rules Version: 2
+// Revision: 2.1 (Updated August 2026 - Production Architecture)
+// =========================================================================
+
 rules_version = '2';
 
 service cloud.firestore {

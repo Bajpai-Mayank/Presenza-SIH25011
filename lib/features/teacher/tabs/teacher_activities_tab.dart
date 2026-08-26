@@ -213,6 +213,7 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
     final activities = activitiesAsync.valueOrNull ?? [];
     final pendingAsync = ref.watch(pendingActivitiesStreamProvider);
     final pending = pendingAsync.valueOrNull ?? [];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -299,26 +300,40 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
                                 const SizedBox(height: 10),
                                 Text(
                                   post.title,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   post.description,
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    height: 1.4,
+                                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                  ),
                                 ),
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
                                     Text(
                                       'By ${post.authorName} (${post.authorRole})',
-                                      style: Theme.of(context).textTheme.labelSmall,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                                      ),
                                     ),
                                     const Spacer(),
                                     Text(
                                       DateFormat('d MMM, yyyy').format(post.createdAt),
-                                      style: Theme.of(context).textTheme.labelSmall,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                        color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -360,19 +375,29 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
                                 const SizedBox(height: 10),
                                 Text(
                                   post.title,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   post.description,
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    height: 1.4,
+                                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                  ),
                                 ),
                                 const SizedBox(height: 10),
                                 Text(
                                   'Submitted by ${post.authorName} • ${DateFormat('d MMM, hh:mm a').format(post.createdAt)}',
-                                  style: Theme.of(context).textTheme.labelSmall,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                                  ),
                                 ),
                                 const SizedBox(height: 14),
                                 Row(

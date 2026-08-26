@@ -215,6 +215,7 @@ class AdminCircularsTab extends ConsumerWidget {
     final activitiesAsync = ref.watch(activitiesStreamProvider);
     final activities = activitiesAsync.valueOrNull ?? [];
     final officialNotices = activities.where((a) => a.isOfficial).toList();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -254,21 +255,31 @@ class AdminCircularsTab extends ConsumerWidget {
                           const Spacer(),
                           Text(
                             DateFormat('d MMM yyyy').format(notice.createdAt),
-                            style: Theme.of(context).textTheme.labelSmall,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
                       Text(
                         notice.title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         notice.description,
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.4,
+                          color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                        ),
                       ),
                     ],
                   ),

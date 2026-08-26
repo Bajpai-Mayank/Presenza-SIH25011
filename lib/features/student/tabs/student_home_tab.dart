@@ -437,16 +437,22 @@ class StudentHomeTab extends ConsumerWidget {
                         const SizedBox(height: 10),
                         Text(
                           post.title,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           post.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Row(
@@ -457,7 +463,11 @@ class StudentHomeTab extends ConsumerWidget {
                             const SizedBox(width: 4),
                             Text(
                               post.authorName,
-                              style: Theme.of(context).textTheme.labelSmall,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                              ),
                             ),
                             const Spacer(),
                             if (post.totalReactions > 0) ...[
@@ -465,7 +475,11 @@ class StudentHomeTab extends ConsumerWidget {
                               const SizedBox(width: 4),
                               Text(
                                 post.totalReactions.toString(),
-                                style: Theme.of(context).textTheme.labelSmall,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                ),
                               ),
                             ],
                           ],

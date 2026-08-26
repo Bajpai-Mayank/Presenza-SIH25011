@@ -569,8 +569,12 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.elevatedDark : AppColors.slate100,
+                    color: isDark ? AppColors.elevatedDark : AppColors.elevatedLight,
                     borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isDark ? AppColors.cardBorderDark : AppColors.cardBorderLight,
+                      width: 0.8,
+                    ),
                   ),
                   child: Row(
                     children: [
@@ -579,9 +583,11 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                         const SizedBox(width: 6),
                         Text(
                           DateFormat('d MMM yyyy, hh:mm a').format(post.eventDate!),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          ),
                         ),
                         const SizedBox(width: 16),
                       ],
@@ -591,9 +597,11 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                         Expanded(
                           child: Text(
                             post.location!,
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -622,14 +630,20 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   const SizedBox(width: 8),
                   Text(
                     '${post.authorName} (${post.authorRole})',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
                   ),
                   const Spacer(),
                   Text(
                     DateFormat('d MMM').format(post.createdAt),
-                    style: Theme.of(context).textTheme.labelSmall,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                    ),
                   ),
                 ],
               ),

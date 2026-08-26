@@ -23,12 +23,13 @@ class AppColors {
   static const Color secondaryContainer = Color(0xFFCCFBF1);
   static const Color secondaryContainerDark = Color(0xFF134E4A);
 
-  // ── Light Surfaces ───────────────────────────────────────────────
-  static const Color backgroundLight = Color(0xFFF8FAFC); // Slate 50
-  static const Color surfaceLight = Color(0xFFFFFFFF);    // Pure White
-  static const Color cardLight = Color(0xFFFFFFFF);       // White card
-  static const Color cardBorderLight = Color(0xFFE2E8F0); // Slate 200
-  static const Color elevatedLight = Color(0xFFF1F5F9);   // Slate 100
+  // ── Light Surfaces (Eye-Comfort Cream Off-White & Crisp Clean Cards) ──
+  static const Color backgroundLight = Color(0xFFF6F8FA); // Soothing Warm Cream-Slate
+  static const Color surfaceLight = Color(0xFFFCFCFD);    // Soft Cream White
+  static const Color cardLight = Color(0xFFFFFFFF);       // Clean Crisp White Card
+  static const Color cardBorderLight = Color(0xFFE2E8F0); // Slate 200 Border
+  static const Color elevatedLight = Color(0xFFEEF2F6);   // Soft Elevated Container
+  static const Color creamWhite = Color(0xFFFAF9F6);      // Warm Cream White
 
   // ── Dark Surfaces (Deep Navy / Charcoal, Never Pure Black) ───────
   static const Color backgroundDark = Color(0xFF0B1120); // Deep Navy Midnight
@@ -38,11 +39,11 @@ class AppColors {
   static const Color elevatedDark = Color(0xFF243248);   // Elevated Slate
 
   // ── Typography Colors ─────────────────────────────────────────────
-  static const Color textPrimaryLight = Color(0xFF0F172A);   // Deep Navy / Slate 900
-  static const Color textSecondaryLight = Color(0xFF475569); // Slate 600
-  static const Color textMutedLight = Color(0xFF94A3B8);     // Slate 400
+  static const Color textPrimaryLight = Color(0xFF0F172A);   // Deep Slate Navy 900 (High Contrast)
+  static const Color textSecondaryLight = Color(0xFF334155); // Slate 700 (Clean, Readable)
+  static const Color textMutedLight = Color(0xFF64748B);     // Slate 500 (Legible Muted)
 
-  static const Color textPrimaryDark = Color(0xFFF8FAFC);   // Slate 50
+  static const Color textPrimaryDark = Color(0xFFF8FAFC);   // Slate 50 (Crisp Warm White)
   static const Color textSecondaryDark = Color(0xFF94A3B8); // Slate 400
   static const Color textMutedDark = Color(0xFF64748B);     // Slate 500
 
