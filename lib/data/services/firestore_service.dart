@@ -504,6 +504,65 @@ class FirestoreService {
     });
   }
 
+  /// Updates the leaderboard entry for a student, calculating consecutive days and 3-day minimum streak.
+  Future<void> _updateLeaderboardForStudent(String studentId, String courseId) async {
+    try {
+      final student = await getStudentProfile(studentId);
+      if (student == null) return;
+
+      final recordsSnap = await _db
+          .collection('attendance_records')
+          .where('studentId', isEqualTo: studentId)
+          .where('courseId', isEqualTo: courseId)
+          .get();
+
+      final records = recordsSnap.docs
+          .map((d) => AttendanceRecordModel.fromJson(d.data()))
+          .toList();
+
+      if (records.isEmpty) return;
+
+      int presentLateCount = records.where((r) => r.status == AttendanceStatus.present || r.status == AttendanceStatus.late).length;
+      double percentage = (presentLateCount / records.length) * 100;
+
+      final recordsByDay = <DateTime, bool>{};
+      for (final r in records) {
+        final date = DateTime(r.timestamp.year, r.timestamp.month, r.timestamp.day);
+        final isPresent = (r.status == AttendanceStatus.present || r.status == AttendanceStatus.late);
+        if (!recordsByDay.containsKey(date) || isPresent) {
+           recordsByDay[date] = isPresent || (recordsByDay[date] ?? false);
+        }
+      }
+
+      final sortedDays = recordsByDay.keys.toList()..sort((a, b) => b.compareTo(a));
+      
+      int streak = 0;
+      for (final day in sortedDays) {
+         if (recordsByDay[day] == true) {
+            streak++;
+         } else {
+            break;
+         }
+      }
+
+      // Enforce the 3-day minimum streak eligibility rule
+      final effectiveStreak = streak >= 3 ? streak : 0;
+
+      final entry = LeaderboardEntryModel(
+        studentId: studentId, // Using the stable Firebase UID
+        studentName: student.user.name,
+        courseId: courseId,
+        rank: 0,
+        streak: effectiveStreak,
+        attendancePercentage: percentage,
+      );
+
+      await _db.collection('leaderboard').doc(studentId).set(entry.toJson());
+    } catch (e) {
+      print('Failed to update leaderboard: $e');
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   // ATTENDANCE POLICIES
   // ══════════════════════════════════════════════════════════════════════
@@ -795,6 +854,8 @@ class FirestoreService {
       // Trigger Supabase Backup if transaction was successful
       if (result.success && result.record != null) {
         _supabaseBackup.backupAttendanceRecord(result.record!);
+        // Update Leaderboard Pipeline asynchronously
+        _updateLeaderboardForStudent(studentUid, studentCourseId);
       }
 
       return result;
@@ -1057,7 +1118,29 @@ class FirestoreService {
     await _db.collection('user_sessions').doc(session.sessionId).set(session.toMap());
   }
 
-  /// Invalidates all other active sessions for this user.
+  /// Checks if there is an active session for the user on another device.
+  Future<bool> hasActiveSession(String userId, String currentDeviceId) async {
+    final docs = await _db
+        .collection('user_sessions')
+        .where('userId', isEqualTo: userId)
+        .where('isActive', isEqualTo: true)
+        .get();
+        
+    for (final doc in docs.docs) {
+      final session = UserSessionModel.fromMap(doc.data());
+      if (session.deviceId != currentDeviceId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Deactivates a specific session.
+  Future<void> deactivateSession(String sessionId) async {
+    await _db.collection('user_sessions').doc(sessionId).update({'isActive': false});
+  }
+
+  /// Invalidates all other active sessions for this user (legacy/fallback).
   Future<void> invalidateOtherSessions(String userId, String activeSessionId) async {
     final batch = _db.batch();
     final docs = await _db

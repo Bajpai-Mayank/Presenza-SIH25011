@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/providers/app_providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -18,6 +19,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberMe();
+  }
+
+  Future<void> _loadRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('remember_me_email');
+    final rememberMe = prefs.getBool('remember_me_enabled') ?? false;
+
+    if (mounted) {
+      setState(() {
+        _rememberMe = rememberMe;
+        if (rememberMe && savedEmail != null) {
+          _emailController.text = savedEmail;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -35,6 +58,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final errorMessage = await ref
         .read(authStatusProvider.notifier)
         .login(_emailController.text.trim(), _passwordController.text.trim());
+
+    if (errorMessage == null) {
+      final prefs = await SharedPreferences.getInstance();
+      if (_rememberMe) {
+        await prefs.setString('remember_me_email', _emailController.text.trim());
+        await prefs.setBool('remember_me_enabled', true);
+      } else {
+        await prefs.remove('remember_me_email');
+        await prefs.setBool('remember_me_enabled', false);
+      }
+    }
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -140,28 +174,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 16,
-                                  height: 16,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: const Color(0xFF4A72FF),
-                                      width: 2,
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _rememberMe = !_rememberMe;
+                                });
+                              },
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _rememberMe ? const Color(0xFF4A72FF) : Colors.transparent,
+                                      border: Border.all(
+                                        color: const Color(0xFF4A72FF),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: _rememberMe
+                                        ? const Icon(Icons.check, size: 12, color: Colors.white)
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Remember me',
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white54 : Colors.black45,
+                                      fontSize: 12,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Remember me',
-                                  style: TextStyle(
-                                    color: isDark ? Colors.white54 : Colors.black45,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                             TextButton(
                               onPressed: () => context.push('/forgot-password'),

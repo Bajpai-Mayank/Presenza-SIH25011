@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:presenza/core/enums/user_role.dart';
@@ -15,11 +16,14 @@ import 'package:presenza/features/student/screens/qr_scanner_screen.dart';
 import 'package:presenza/features/teacher/screens/teacher_shell.dart';
 import 'package:presenza/features/admin/screens/admin_shell.dart';
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
   final authStatus = ref.watch(authStatusProvider);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/login',
     redirect: (context, state) {
       final currentLoc = state.matchedLocation;

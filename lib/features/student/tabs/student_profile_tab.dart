@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/user_model.dart';
@@ -123,6 +126,47 @@ class StudentProfileTab extends ConsumerWidget {
     );
   }
 
+  Future<void> _pickAndUploadProfilePicture(BuildContext context, WidgetRef ref, UserModel user) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      
+      // Compress the image
+      final compressedBytes = await FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: 400,
+        minHeight: 400,
+        quality: 70,
+      );
+
+      final base64String = base64Encode(compressedBytes);
+      final dataUri = 'data:image/jpeg;base64,$base64String';
+
+      await ref.read(firestoreServiceProvider).updateUserProfile(
+        uid: user.id,
+        avatarUrl: dataUri,
+      );
+
+      await ref.read(authStatusProvider.notifier).refreshProfile();
+      await ref.read(studentProfileProvider.notifier).refresh();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile picture updated successfully!'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update picture: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final student = ref.watch(studentProfileProvider);
@@ -187,16 +231,40 @@ class StudentProfileTab extends ConsumerWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer,
-                      child: Text(
-                        student.user.initials,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? AppColors.primaryDark : AppColors.primary,
-                        ),
+                    GestureDetector(
+                      onTap: () => _pickAndUploadProfilePicture(context, ref, student.user),
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 36,
+                            backgroundColor: isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer,
+                            backgroundImage: student.user.avatarUrl != null 
+                                ? (student.user.avatarUrl!.startsWith('data:') 
+                                    ? MemoryImage(base64Decode(student.user.avatarUrl!.split(',')[1])) 
+                                    : NetworkImage(student.user.avatarUrl!) as ImageProvider)
+                                : null,
+                            child: student.user.avatarUrl == null ? Text(
+                              student.user.initials,
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? AppColors.primaryDark : AppColors.primary,
+                              ),
+                            ) : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 16),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/attendance_status.dart';
 import 'package:presenza/providers/app_providers.dart';
@@ -61,14 +62,19 @@ class StudentHomeTab extends ConsumerWidget {
                   backgroundColor: isDark
                       ? AppColors.primaryContainerDark
                       : AppColors.primaryContainer,
-                  child: Text(
+                  backgroundImage: student.user.avatarUrl != null 
+                      ? (student.user.avatarUrl!.startsWith('data:') 
+                          ? MemoryImage(base64Decode(student.user.avatarUrl!.split(',')[1])) 
+                          : NetworkImage(student.user.avatarUrl!) as ImageProvider)
+                      : null,
+                  child: student.user.avatarUrl == null ? Text(
                     student.user.initials,
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color: isDark ? AppColors.primaryDark : AppColors.primary,
                       fontSize: 16,
                     ),
-                  ),
+                  ) : null,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -143,7 +149,7 @@ class StudentHomeTab extends ConsumerWidget {
                   ),
                 ),
               ],
-            ),
+            ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
             const SizedBox(height: 20),
 
             // ── Overall Attendance Summary Card ─────────────────────────
@@ -246,7 +252,7 @@ class StudentHomeTab extends ConsumerWidget {
                   ),
                 ),
               ],
-            ),
+            ).animate().fadeIn(duration: 400.ms, delay: 100.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
             const SizedBox(height: 24),
 
             // ── Today's Classes & Status ────────────────────────────────

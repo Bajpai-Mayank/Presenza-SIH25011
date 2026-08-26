@@ -47,18 +47,29 @@ dependencies:
   shared_preferences: ^2.5.3
 
   # Image picker & colour picker UI
-  image_picker: ^1.0.7
+  image_picker: ^1.2.3
   flutter_colorpicker: ^1.0.4
 
   # Utilities
   intl: ^0.20.2
   uuid: ^4.5.1
   crypto: ^3.0.6
+  firebase_messaging: ^15.2.10
+  flutter_local_notifications: ^22.3.0
+  flutter_image_compress: ^2.5.1
+  firebase_storage: ^12.4.10
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/icon.png"
 
 flutter:
   uses-material-design: true

@@ -144,10 +144,23 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       );
       
       if (result.success && result.user != null) {
-        // The authStateChanges stream will naturally pick up the user, 
-        // but we can proactively do session bookkeeping in the background
-        // so it doesn't block the UI transition.
-        unawaited(_performSessionBookkeeping(result.user!.uid));
+        final firestoreService = _ref.read(firestoreServiceProvider);
+        
+        final prefs = await SharedPreferences.getInstance();
+        String? deviceId = prefs.getString('persistent_device_id');
+        if (deviceId == null) {
+          deviceId = const Uuid().v4();
+          await prefs.setString('persistent_device_id', deviceId);
+        }
+
+        final hasOtherActiveSession = await firestoreService.hasActiveSession(result.user!.uid, deviceId);
+        if (hasOtherActiveSession) {
+          await FirebaseAuth.instance.signOut();
+          state = const AuthState.unauthenticated();
+          return 'This account is already active on another device.';
+        }
+
+        unawaited(_performSessionBookkeeping(result.user!.uid, deviceId));
         return null; // success
       }
       state = const AuthState.unauthenticated(); // Reset on error
@@ -158,7 +171,7 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> _performSessionBookkeeping(String uid) async {
+  Future<void> _performSessionBookkeeping(String uid, String deviceId) async {
     try {
       final firestoreService = _ref.read(firestoreServiceProvider);
       final sessionId = const Uuid().v4();
@@ -168,7 +181,7 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       final session = UserSessionModel(
         sessionId: sessionId,
         userId: uid,
-        deviceId: 'device-id-placeholder', 
+        deviceId: deviceId, 
         loginAt: DateTime.now(),
         isActive: true,
       );
@@ -183,6 +196,17 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final activeSessionId = prefs.getString('active_session_id');
+      if (activeSessionId != null) {
+        final firestoreService = _ref.read(firestoreServiceProvider);
+        await firestoreService.deactivateSession(activeSessionId);
+        await prefs.remove('active_session_id');
+      }
+    } catch (e) {
+      debugPrint('Logout session deactivation failed: $e');
+    }
     await FirebaseAuth.instance.signOut();
   }
 
@@ -367,18 +391,28 @@ final attendanceStreakProvider = Provider<int>((ref) {
   final records = recordsAsync.valueOrNull ?? [];
   if (records.isEmpty) return 0;
 
-  final sorted = List<AttendanceRecordModel>.from(records)
-    ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  final recordsByDay = <DateTime, bool>{};
+  for (final r in records) {
+    final date = DateTime(r.timestamp.year, r.timestamp.month, r.timestamp.day);
+    final isPresent = (r.status.name == 'present' || r.status.name == 'late');
+    if (!recordsByDay.containsKey(date) || isPresent) {
+      recordsByDay[date] = isPresent || (recordsByDay[date] ?? false);
+    }
+  }
 
+  final sortedDays = recordsByDay.keys.toList()..sort((a, b) => b.compareTo(a));
+  
   int streak = 0;
-  for (final record in sorted) {
-    if (record.status.name == 'present' || record.status.name == 'late') {
+  for (final day in sortedDays) {
+    if (recordsByDay[day] == true) {
       streak++;
     } else {
       break;
     }
   }
-  return streak;
+
+  // Enforce the 3-day minimum streak eligibility rule
+  return streak >= 3 ? streak : 0;
 });
 
 // ══════════════════════════════════════════════════════════════════════

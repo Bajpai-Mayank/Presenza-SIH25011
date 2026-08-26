@@ -29,7 +29,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   UserRole _selectedRole = UserRole.student;
   String? _selectedCourseId;
   String? _selectedBatchId;
-  int _selectedSemester = 1;
+  int? _selectedYear;
+  String? _selectedSection;
+  int? _selectedSemester;
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -49,10 +51,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedRole == UserRole.student && (_selectedCourseId == null || _selectedBatchId == null)) {
+    if (_selectedRole == UserRole.student && (_selectedCourseId == null || _selectedBatchId == null || _selectedSemester == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a course and batch.'),
+          content: Text('Please select a course, batch, section, and semester.'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -121,7 +123,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           studentId: idNumber.isNotEmpty ? idNumber : 'STU-${now.millisecondsSinceEpoch.toString().substring(7)}',
           courseId: _selectedCourseId!,
           batchId: _selectedBatchId!,
-          semester: _selectedSemester,
+          semester: _selectedSemester ?? 1,
           enrollmentDate: now,
         );
         await firestoreService.registerStudentAtomically(
@@ -380,21 +382,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final courses = ref.watch(coursesProvider).valueOrNull ?? [];
     final batches = ref.watch(batchesProvider).valueOrNull ?? [];
 
-    if (courses.isNotEmpty && _selectedCourseId == null) {
-      _selectedCourseId = courses.first.id;
-    }
-    
     // Filter batches by selected course
     final availableBatches = batches.where((b) => b.courseId == _selectedCourseId).toList();
-    if (availableBatches.isNotEmpty && (_selectedBatchId == null || !availableBatches.any((b) => b.id == _selectedBatchId))) {
-      _selectedBatchId = availableBatches.first.id;
-    }
+    
+    // Unique years for the selected course
+    final availableYears = availableBatches.map((b) => b.year).toSet().toList()..sort();
+    
+    // Unique sections for the selected year
+    final availableSections = availableBatches
+        .where((b) => b.year == _selectedYear)
+        .map((b) => b.section)
+        .toSet()
+        .toList()
+        ..sort();
 
     // Get max semesters
     final selectedCourse = courses.where((c) => c.id == _selectedCourseId).firstOrNull;
     final maxSemesters = selectedCourse?.totalSemesters ?? 8;
-    if (_selectedSemester > maxSemesters) {
-      _selectedSemester = 1;
+    if (_selectedSemester != null && _selectedSemester! > maxSemesters) {
+      _selectedSemester = null;
     }
 
     if (_selectedRole == UserRole.student) {
@@ -432,26 +438,61 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           Row(
             children: [
               Expanded(
-                flex: 3,
-                child: _buildPillDropdown<String>(
-                  value: _selectedBatchId,
-                  hintText: 'Class Section',
+                flex: 1,
+                child: _buildPillDropdown<int>(
+                  value: _selectedYear,
+                  hintText: 'Year',
                   isDark: isDark,
-                  items: availableBatches.map((b) {
+                  items: availableYears.map((y) {
                     return DropdownMenuItem(
-                      value: b.id,
-                      child: Text(b.name, overflow: TextOverflow.ellipsis),
+                      value: y,
+                      child: Text(y.toString()),
                     );
                   }).toList(),
                   onChanged: (val) {
-                    if (val != null) setState(() => _selectedBatchId = val);
+                    if (val != null) {
+                      setState(() {
+                        _selectedYear = val;
+                        _selectedSection = null;
+                        _selectedBatchId = null;
+                      });
+                    }
                   },
-                  validator: (v) => v == null ? 'Batch is required' : null,
+                  validator: (v) => v == null ? 'Required' : null,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
-                flex: 2,
+                flex: 1,
+                child: _buildPillDropdown<String>(
+                  value: _selectedSection,
+                  hintText: 'Section',
+                  isDark: isDark,
+                  items: availableSections.map((s) {
+                    return DropdownMenuItem(
+                      value: s,
+                      child: Text(s),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() {
+                        _selectedSection = val;
+                        // Find matching batch
+                        final match = availableBatches.firstWhere(
+                          (b) => b.year == _selectedYear && b.section == _selectedSection,
+                          orElse: () => availableBatches.first,
+                        );
+                        _selectedBatchId = match.id;
+                      });
+                    }
+                  },
+                  validator: (v) => v == null ? 'Required' : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
                 child: _buildPillDropdown<int>(
                   value: _selectedSemester,
                   hintText: 'Sem',
@@ -465,6 +506,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   onChanged: (val) {
                     if (val != null) setState(() => _selectedSemester = val);
                   },
+                  validator: (v) => v == null ? 'Required' : null,
                 ),
               ),
             ],

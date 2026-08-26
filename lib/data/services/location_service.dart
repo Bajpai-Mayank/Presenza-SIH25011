@@ -121,6 +121,13 @@ class LocationService {
         );
       }
 
+      // Security: Reject inaccurate locations
+      if (position.accuracy > 100.0) {
+        return const LocationVerificationResult.failure(
+          'Location accuracy is too low. Please move to an area with better GPS reception.',
+        );
+      }
+
       final distance = Geolocator.distanceBetween(
         position.latitude,
         position.longitude,

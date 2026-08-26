@@ -11,6 +11,7 @@ import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:presenza/data/services/location_service.dart';
 
 class TeacherAttendanceTab extends ConsumerStatefulWidget {
   const TeacherAttendanceTab({super.key});
@@ -28,6 +29,8 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
   bool _isCustomSubject = false;
   String _selectedBatchId = 'batch-2024-a';
   int _qrExpiryMinutes = 10;
+  bool _isCustomExpiry = false;
+  final _customExpiryController = TextEditingController();
   bool _locationRequired = false;
   final FaceVerificationMode _faceMode = FaceVerificationMode.disabled;
   bool _isCreatingSession = false;
@@ -44,6 +47,7 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
     _roomController.dispose();
     _customSubjectNameController.dispose();
     _customSubjectCodeController.dispose();
+    _customExpiryController.dispose();
     super.dispose();
   }
 
@@ -101,7 +105,43 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
       }
     }
 
+    int finalExpiryMinutes = _qrExpiryMinutes;
+    if (_isCustomExpiry) {
+      final parsed = int.tryParse(_customExpiryController.text.trim());
+      if (parsed == null || parsed <= 0) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a valid custom expiration time in minutes.'), backgroundColor: AppColors.error),
+          );
+        }
+        return;
+      }
+      finalExpiryMinutes = parsed;
+    }
+
     setState(() => _isCreatingSession = true);
+
+    double? currentLat;
+    double? currentLng;
+    if (_locationRequired) {
+      final locService = LocationService();
+      final position = await locService.getCurrentPosition();
+      if (position != null) {
+        currentLat = position.latitude;
+        currentLng = position.longitude;
+      } else {
+        if (mounted) {
+          setState(() => _isCreatingSession = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to acquire location. Please enable GPS and try again.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+    }
 
     final now = DateTime.now();
     final sessionId = const Uuid().v4();
@@ -119,13 +159,13 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
       room: _roomController.text.trim(),
       date: now,
       startTime: now,
-      endTime: now.add(Duration(minutes: _qrExpiryMinutes)),
+      endTime: now.add(Duration(minutes: finalExpiryMinutes)),
       qrToken: token,
       isActive: true,
       locationRequired: _locationRequired,
       faceVerificationMode: _faceMode,
-      campusLat: _locationRequired ? 28.6139 : null,
-      campusLng: _locationRequired ? 77.2090 : null,
+      campusLat: _locationRequired ? currentLat : null,
+      campusLng: _locationRequired ? currentLng : null,
       allowedRadiusMeters: _locationRequired ? 100.0 : null,
       createdAt: now,
     );
@@ -315,16 +355,37 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
-                      children: [5, 10, 15, 30].map((mins) {
-                        return ChoiceChip(
-                          label: Text('$mins mins'),
-                          selected: _qrExpiryMinutes == mins,
+                      children: [
+                        ...[5, 10, 15, 30].map((mins) {
+                          return ChoiceChip(
+                            label: Text('$mins mins'),
+                            selected: !_isCustomExpiry && _qrExpiryMinutes == mins,
+                            onSelected: (val) {
+                              if (val) setState(() {
+                                _isCustomExpiry = false;
+                                _qrExpiryMinutes = mins;
+                              });
+                            },
+                          );
+                        }),
+                        ChoiceChip(
+                          label: const Text('Custom'),
+                          selected: _isCustomExpiry,
                           onSelected: (val) {
-                            if (val) setState(() => _qrExpiryMinutes = mins);
+                            if (val) setState(() => _isCustomExpiry = true);
                           },
-                        );
-                      }).toList(),
+                        ),
+                      ],
                     ),
+                    if (_isCustomExpiry) ...[
+                      const SizedBox(height: 12),
+                      AppTextField(
+                        controller: _customExpiryController,
+                        labelText: 'Custom Expiration (Minutes)',
+                        hintText: 'e.g. 45',
+                        keyboardType: TextInputType.number,
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     // Location Geolocation Verification Switch

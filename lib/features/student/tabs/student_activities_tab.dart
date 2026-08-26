@@ -6,6 +6,7 @@ import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:uuid/uuid.dart';
+import 'package:share_plus/share_plus.dart';
 
 class StudentActivitiesTab extends ConsumerStatefulWidget {
   const StudentActivitiesTab({super.key});
@@ -695,6 +696,25 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+
+                  // Share
+                  InkWell(
+                    onTap: () {
+                      final url = 'https://presenza.app/activity/${post.id}';
+                      Share.share('Check out this activity on Presenza: ${post.title}\n$url');
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.share_rounded, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+
                   const Spacer(),
 
                   // Going / Interested Button
