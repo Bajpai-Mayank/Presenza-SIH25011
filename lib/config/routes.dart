@@ -19,7 +19,6 @@ import 'package:presenza/features/admin/screens/admin_shell.dart';
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
   final authStatus = ref.watch(authStatusProvider);
 
   return GoRouter(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
@@ -559,7 +560,7 @@ class FirestoreService {
 
       await _db.collection('leaderboard').doc(studentId).set(entry.toJson());
     } catch (e) {
-      print('Failed to update leaderboard: $e');
+      debugPrint('Failed to update leaderboard: $e');
     }
   }
 

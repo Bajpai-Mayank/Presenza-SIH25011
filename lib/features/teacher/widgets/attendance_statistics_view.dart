@@ -40,7 +40,7 @@ class _AttendanceStatisticsViewState extends ConsumerState<AttendanceStatisticsV
           const SizedBox(height: 16),
           
           DropdownButtonFormField<String>(
-            value: _selectedSubjectId ?? (subjects.isNotEmpty ? subjects.first.id : null),
+            initialValue: _selectedSubjectId ?? (subjects.isNotEmpty ? subjects.first.id : null),
             decoration: const InputDecoration(
               labelText: 'Filter by Subject',
               prefixIcon: Icon(Icons.filter_list_rounded, size: 20),

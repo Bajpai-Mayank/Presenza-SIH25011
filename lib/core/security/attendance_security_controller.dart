@@ -47,9 +47,9 @@ class AttendanceSecurityNotifier extends StateNotifier<SecurityState> with Widge
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState appState) {
-    if (appState == AppLifecycleState.resumed) {
-      if (state != SecurityState.idle) {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (this.state != SecurityState.idle) {
         _checkMultiWindow();
       }
     }

@@ -5,7 +5,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/enums.dart';
-import 'package:presenza/core/services/security_service.dart';
 import 'package:presenza/core/security/attendance_security_controller.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/course_model.dart';
@@ -361,10 +360,12 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
                             label: Text('$mins mins'),
                             selected: !_isCustomExpiry && _qrExpiryMinutes == mins,
                             onSelected: (val) {
-                              if (val) setState(() {
-                                _isCustomExpiry = false;
-                                _qrExpiryMinutes = mins;
-                              });
+                              if (val) {
+                                setState(() {
+                                  _isCustomExpiry = false;
+                                  _qrExpiryMinutes = mins;
+                                });
+                              }
                             },
                           );
                         }),

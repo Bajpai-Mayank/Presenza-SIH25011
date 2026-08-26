@@ -29,7 +29,7 @@ class WavyHeader extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (logo != null) logo!,
+              ?logo,
               const SizedBox(height: 10),
               Text(
                 title,

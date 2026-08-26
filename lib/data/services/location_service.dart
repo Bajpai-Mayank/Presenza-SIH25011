@@ -35,8 +35,8 @@ class LocationVerificationResult {
 
 class LocationService {
   /// Default radius for attendance verification (in meters).
-  static const double ATTENDANCE_ALLOWED_RADIUS_METERS = 100.0;
-  static const int MAX_STALE_LOCATION_SECONDS = 30;
+  static const double attendanceAllowedRadiusMeters = 100.0;
+  static const int maxStaleLocationSeconds = 30;
 
   /// Checks permissions and fetches the current device position.
   Future<Position?> getCurrentPosition() async {
@@ -113,9 +113,9 @@ class LocationService {
         );
       }
 
-      // Security: Reject stale locations (older than MAX_STALE_LOCATION_SECONDS)
+      // Security: Reject stale locations (older than maxStaleLocationSeconds)
       final age = DateTime.now().difference(position.timestamp);
-      if (age.inSeconds > MAX_STALE_LOCATION_SECONDS) {
+      if (age.inSeconds > maxStaleLocationSeconds) {
         return const LocationVerificationResult.failure(
           'Location data is stale. Please ensure GPS is active and try again.',
         );

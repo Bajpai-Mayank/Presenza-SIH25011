@@ -46,9 +46,14 @@ service cloud.firestore {
 
     // Students Collection
     match /students/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isTeacherOrAdmin());
+      allow read: if signedIn();
       allow create, update: if signedIn() && (request.auth.uid == uid || isTeacherOrAdmin());
       allow delete: if isUserAdmin();
+
+      match /attendance/{recordId} {
+        allow read: if signedIn() && (request.auth.uid == uid || isTeacherOrAdmin());
+        allow write: if signedIn();
+      }
     }
 
     // Teachers Collection
@@ -56,6 +61,11 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create, update: if signedIn() && (request.auth.uid == uid || isUserAdmin());
       allow delete: if isUserAdmin();
+    }
+
+    // User Sessions (Single Device Login)
+    match /user_sessions/{id} {
+      allow read, write: if signedIn();
     }
 
     // Courses, Batches, Subjects (Public read for registration dropdowns)

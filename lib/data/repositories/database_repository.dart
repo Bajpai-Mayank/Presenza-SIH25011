@@ -1,5 +1,4 @@
 import 'package:presenza/core/enums/attendance_status.dart';
-import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/course_model.dart';

@@ -51,7 +51,7 @@ void main() async {
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
     final supabaseKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'];
     if (supabaseUrl != null && supabaseUrl.isNotEmpty && supabaseKey != null && supabaseKey.isNotEmpty) {
-      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+      await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
       debugPrint('Supabase backup initialized successfully.');
     } else {
       debugPrint('Supabase env vars missing. Skipping backup initialization.');

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:presenza/config/theme/app_colors.dart';
-import 'package:presenza/core/services/security_service.dart';
 import 'package:presenza/core/security/attendance_security_controller.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/services/firestore_service.dart';

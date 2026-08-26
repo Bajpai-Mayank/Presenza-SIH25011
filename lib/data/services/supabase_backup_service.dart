@@ -3,16 +3,28 @@ import 'package:presenza/data/models/attendance_model.dart';
 import 'package:flutter/foundation.dart';
 
 class SupabaseBackupService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  SupabaseClient? get _supabase {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Backs up a newly created attendance record to Supabase.
   /// This operation runs asynchronously and independently of the main Firestore flow
   /// to avoid slowing down the check-in process.
   Future<void> backupAttendanceRecord(AttendanceRecordModel record) async {
     try {
+      final client = _supabase;
+      if (client == null) {
+        debugPrint('Supabase client not initialized. Skipping backup.');
+        return;
+      }
+
       // We assume there is a table named 'attendance_records_backup'
       // or similar in the Supabase schema. We'll use 'attendance_records'.
-      await _supabase.from('attendance_records').insert({
+      await client.from('attendance_records').insert({
         'id': record.id,
         'student_id': record.studentId,
         'attendance_session_id': record.attendanceSessionId,
@@ -40,3 +52,4 @@ class SupabaseBackupService {
     }
   }
 }
+

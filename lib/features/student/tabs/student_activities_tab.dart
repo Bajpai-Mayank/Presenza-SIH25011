@@ -702,6 +702,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   InkWell(
                     onTap: () {
                       final url = 'https://presenza.app/activity/${post.id}';
+                      // ignore: deprecated_member_use
                       Share.share('Check out this activity on Presenza: ${post.title}\n$url');
                     },
                     borderRadius: BorderRadius.circular(8),

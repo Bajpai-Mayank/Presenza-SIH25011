@@ -5,6 +5,7 @@ import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/user_model.dart';
+import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/data/models/app_models.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
@@ -18,6 +19,58 @@ class RegisterScreen extends ConsumerStatefulWidget {
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+  static const List<CourseModel> _defaultCourses = [
+    CourseModel(
+      id: 'course-btech-cse',
+      name: 'B.Tech Computer Science & Engineering',
+      code: 'BTECH-CSE',
+      departmentId: 'dept-cse',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-btech-it',
+      name: 'B.Tech Information Technology',
+      code: 'BTECH-IT',
+      departmentId: 'dept-it',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-btech-ece',
+      name: 'B.Tech Electronics & Communication',
+      code: 'BTECH-ECE',
+      departmentId: 'dept-ece',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-btech-me',
+      name: 'B.Tech Mechanical Engineering',
+      code: 'BTECH-ME',
+      departmentId: 'dept-me',
+      totalSemesters: 8,
+    ),
+    CourseModel(
+      id: 'course-bca',
+      name: 'Bachelor of Computer Applications (BCA)',
+      code: 'BCA',
+      departmentId: 'dept-ca',
+      totalSemesters: 6,
+    ),
+    CourseModel(
+      id: 'course-mca',
+      name: 'Master of Computer Applications (MCA)',
+      code: 'MCA',
+      departmentId: 'dept-ca',
+      totalSemesters: 4,
+    ),
+    CourseModel(
+      id: 'course-mba',
+      name: 'Master of Business Administration (MBA)',
+      code: 'MBA',
+      departmentId: 'dept-mgmt',
+      totalSemesters: 4,
+    ),
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -149,13 +202,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
       if (mounted) {
         setState(() => _isLoading = false);
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Account registered successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        // Direct routing based on registered role
+        if (_selectedRole == UserRole.student) {
+          context.go('/student');
+        } else if (_selectedRole == UserRole.teacher) {
+          context.go('/teacher');
+        } else {
+          context.go('/admin');
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Registration error: $e'),
+            content: Text('An error occurred during registration: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -171,10 +238,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            WavyHeader(
+            const WavyHeader(
               title: 'PRESENZA',
               logo: Icon(
-                Icons.school_rounded,
+                Icons.person_add_alt_1_rounded,
                 size: 64,
                 color: Colors.white,
               ),
@@ -183,7 +250,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -213,7 +280,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             backgroundColor: WidgetStateProperty.resolveWith<Color>(
                               (Set<WidgetState> states) {
                                 if (states.contains(WidgetState.selected)) {
-                                  return const Color(0xFF4A72FF).withOpacity(0.1);
+                                  return const Color(0xFF4A72FF).withValues(alpha: 0.1);
                                 }
                                 return Colors.transparent;
                               },
@@ -240,8 +307,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         _buildBasicInfoFields(isDark),
                         const SizedBox(height: 16),
                         _buildRoleSpecificFields(isDark),
-                        const SizedBox(height: 16),
-                        _buildPasswordFields(isDark),
                         const SizedBox(height: 32),
                         SizedBox(
                           width: double.infinity,
@@ -280,29 +345,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             Text(
                               'Already have an account? ',
                               style: TextStyle(
-                                color: isDark ? Colors.white54 : Colors.black45,
-                                fontSize: 13,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontSize: 14,
                               ),
                             ),
-                            TextButton(
-                              onPressed: () => context.pop(),
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
+                            GestureDetector(
+                              onTap: () => context.go('/login'),
                               child: const Text(
-                                'Sign In',
+                                'Login',
                                 style: TextStyle(
                                   color: Color(0xFF4A72FF),
-                                  fontSize: 13,
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),
@@ -322,27 +382,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           controller: _nameController,
           hintText: 'Full Name',
           isDark: isDark,
-          validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
+          validator: (v) => v == null || v.trim().isEmpty ? 'Please enter your name' : null,
         ),
         const SizedBox(height: 16),
         _buildPillTextField(
           controller: _emailController,
-          hintText: 'University Email',
+          hintText: 'Email Address',
           isDark: isDark,
           keyboardType: TextInputType.emailAddress,
           validator: (v) {
-            if (v == null || v.trim().isEmpty) return 'Email is required';
+            if (v == null || v.trim().isEmpty) return 'Please enter your email';
             if (!v.contains('@') || !v.contains('.')) return 'Please enter a valid email';
             return null;
           },
         ),
-      ],
-    );
-  }
-
-  Widget _buildPasswordFields(bool isDark) {
-    return Column(
-      children: [
+        const SizedBox(height: 16),
         _buildPillTextField(
           controller: _passwordController,
           hintText: 'Password',
@@ -379,22 +433,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Widget _buildRoleSpecificFields(bool isDark) {
-    final courses = ref.watch(coursesProvider).valueOrNull ?? [];
+    final firestoreCourses = ref.watch(coursesProvider).valueOrNull ?? [];
+    final List<CourseModel> courses = (firestoreCourses.isNotEmpty ? firestoreCourses : _defaultCourses)
+        .whereType<CourseModel>()
+        .toList();
     final batches = ref.watch(batchesProvider).valueOrNull ?? [];
 
     // Filter batches by selected course
     final availableBatches = batches.where((b) => b.courseId == _selectedCourseId).toList();
     
-    // Unique years for the selected course
-    final availableYears = availableBatches.map((b) => b.year).toSet().toList()..sort();
+    // Academic years
+    final defaultYears = [2023, 2024, 2025, 2026, 2027];
+    final batchYears = availableBatches.map((b) => b.year).toSet().toList();
+    final availableYears = (batchYears.isNotEmpty ? batchYears : defaultYears)..sort();
     
-    // Unique sections for the selected year
-    final availableSections = availableBatches
+    // Sections
+    final defaultSections = ['A', 'B', 'C', 'D'];
+    final batchSections = availableBatches
         .where((b) => b.year == _selectedYear)
         .map((b) => b.section)
         .toSet()
-        .toList()
-        ..sort();
+        .toList();
+    final availableSections = (batchSections.isNotEmpty ? batchSections : defaultSections)..sort();
 
     // Get max semesters
     final selectedCourse = courses.where((c) => c.id == _selectedCourseId).firstOrNull;
@@ -478,12 +538,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     if (val != null) {
                       setState(() {
                         _selectedSection = val;
-                        // Find matching batch
-                        final match = availableBatches.firstWhere(
-                          (b) => b.year == _selectedYear && b.section == _selectedSection,
-                          orElse: () => availableBatches.first,
-                        );
-                        _selectedBatchId = match.id;
+                        // Find or generate matching batch
+                        final match = availableBatches.where(
+                          (b) => b.year == _selectedYear && b.section == val,
+                        ).firstOrNull;
+                        _selectedBatchId = match?.id ?? 'batch_${_selectedCourseId ?? 'cse'}_${_selectedYear ?? 2024}_${val.toLowerCase()}';
                       });
                     }
                   },
@@ -591,7 +650,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }) {
     return DropdownButtonFormField<T>(
       isExpanded: true,
-      value: value,
+      initialValue: value,
       items: items,
       onChanged: onChanged,
       validator: validator,
