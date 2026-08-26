@@ -7,6 +7,7 @@ import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/core/enums/attendance_status.dart';
 import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/data/models/user_session_model.dart';
+import 'package:presenza/data/services/supabase_backup_service.dart';
 import 'package:uuid/uuid.dart';
 
 /// Result of a transaction-based attendance marking operation.
@@ -27,6 +28,7 @@ class AttendanceResult {
 /// Acts as the primary backend implementation for database access.
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseBackupService _supabaseBackup = SupabaseBackupService();
   static const _uuid = Uuid();
 
   // ══════════════════════════════════════════════════════════════════════
@@ -734,7 +736,7 @@ class FirestoreService {
 
         // 6. Create the attendance record
         final now = DateTime.now();
-        final recordId = _uuid.v4();
+        final recordId = '${sessionId}_$studentUid'; // Deterministic Idempotency
         final record = AttendanceRecordModel(
           id: recordId,
           studentId: studentUid,
@@ -763,6 +765,11 @@ class FirestoreService {
 
         return AttendanceResult.success(record);
       });
+
+      // Trigger Supabase Backup if transaction was successful
+      if (result.success && result.record != null) {
+        _supabaseBackup.backupAttendanceRecord(result.record!);
+      }
 
       return result;
     } catch (e) {

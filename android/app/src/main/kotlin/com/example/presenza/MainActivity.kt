@@ -1,7 +1,9 @@
 package com.example.presenza
 
+import android.app.Activity
 import android.os.Build
 import android.view.WindowManager
+import androidx.annotation.RequiresApi
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel

@@ -1,40 +1,42 @@
-import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:presenza/data/models/attendance_model.dart';
-import 'package:presenza/data/models/user_model.dart';
+import 'package:flutter/foundation.dart';
 
-/// Skeleton service for Supabase backup synchronization.
-/// This fulfills the SIH requirements for a secondary cloud fallback without 
-/// disrupting the primary Firebase database logic.
-///
-/// Note: To actually use this, Supabase initialization needs to be added to 
-/// main.dart with a valid url/anonKey, and the supabase_flutter package installed.
 class SupabaseBackupService {
-  // final SupabaseClient _client = Supabase.instance.client;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Syncs all student records to Supabase in batches.
-  Future<void> syncStudentsToBackup(List<StudentModel> students) async {
-    debugPrint('[SupabaseBackup] Syncing ${students.length} students to backup database...');
-    // Example implementation:
-    // await _client.from('students').upsert(
-    //   students.map((e) => e.toMap()).toList(),
-    // );
-  }
-
-  /// Syncs an attendance session and its corresponding records to Supabase.
-  Future<void> syncAttendanceSession(AttendanceSessionModel session, List<AttendanceRecordModel> records) async {
-    debugPrint('[SupabaseBackup] Syncing session ${session.id} with ${records.length} records...');
-    // Example implementation:
-    // await _client.from('attendance_sessions').upsert(session.toMap());
-    // if (records.isNotEmpty) {
-    //   await _client.from('attendance_records').upsert(
-    //     records.map((e) => e.toMap()).toList(),
-    //   );
-    // }
-  }
-
-  /// Exports local Firebase backup files if Supabase is unavailable.
-  Future<void> triggerManualExport() async {
-    debugPrint('[SupabaseBackup] Triggering manual export logic...');
-    // See database_backup_guide.md for manual process.
+  /// Backs up a newly created attendance record to Supabase.
+  /// This operation runs asynchronously and independently of the main Firestore flow
+  /// to avoid slowing down the check-in process.
+  Future<void> backupAttendanceRecord(AttendanceRecordModel record) async {
+    try {
+      // We assume there is a table named 'attendance_records_backup'
+      // or similar in the Supabase schema. We'll use 'attendance_records'.
+      await _supabase.from('attendance_records').insert({
+        'id': record.id,
+        'student_id': record.studentId,
+        'attendance_session_id': record.attendanceSessionId,
+        'subject_id': record.subjectId,
+        'subject_name': record.subjectName,
+        'course_id': record.courseId,
+        'teacher_id': record.teacherId,
+        'teacher_name': record.teacherName,
+        'room': record.room,
+        'status': record.status.name,
+        'verification_method': record.verificationMethod.name,
+        'timestamp': record.timestamp.toIso8601String(),
+        'location_verified': record.locationVerified,
+        'face_verified': record.faceVerified,
+        'latitude': record.latitude,
+        'longitude': record.longitude,
+        'created_at': record.createdAt.toIso8601String(),
+        'updated_at': record.updatedAt.toIso8601String(),
+      });
+      debugPrint('Successfully backed up attendance record to Supabase: ${record.id}');
+    } catch (e) {
+      // Silently fail or log it since this is just a backup mechanism
+      // and we don't want to crash the app or alert the user if backup fails.
+      debugPrint('Failed to backup attendance record to Supabase: $e');
+    }
   }
 }
