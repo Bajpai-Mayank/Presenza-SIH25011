@@ -34,6 +34,10 @@ class LocationVerificationResult {
 }
 
 class LocationService {
+  /// Default radius for attendance verification (in meters).
+  static const double ATTENDANCE_ALLOWED_RADIUS_METERS = 100.0;
+  static const int MAX_STALE_LOCATION_SECONDS = 30;
+
   /// Checks permissions and fetches the current device position.
   Future<Position?> getCurrentPosition() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -101,6 +105,21 @@ class LocationService {
           timeLimit: Duration(seconds: 10),
         ),
       );
+
+      // Security: Reject mocked locations (fake GPS apps)
+      if (position.isMocked) {
+        return const LocationVerificationResult.failure(
+          'Mock location detected. Please disable fake GPS applications.',
+        );
+      }
+
+      // Security: Reject stale locations (older than MAX_STALE_LOCATION_SECONDS)
+      final age = DateTime.now().difference(position.timestamp);
+      if (age.inSeconds > MAX_STALE_LOCATION_SECONDS) {
+        return const LocationVerificationResult.failure(
+          'Location data is stale. Please ensure GPS is active and try again.',
+        );
+      }
 
       final distance = Geolocator.distanceBetween(
         position.latitude,

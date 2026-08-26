@@ -107,6 +107,7 @@ class ActivityPostModel {
   final String? organizer;
   final List<String> targetCourseIds;
   final List<String> targetBatchIds;
+  final List<int> targetSemesters;
   final List<String> attachmentUrls;
   final Map<String, int> reactionCounts; // {'like': 10, 'clap': 5, 'fire': 8}
   final Map<String, String> userReactions; // userId -> 'like' / 'clap' / 'fire'
@@ -131,6 +132,7 @@ class ActivityPostModel {
     this.organizer,
     this.targetCourseIds = const [],
     this.targetBatchIds = const [],
+    this.targetSemesters = const [],
     this.attachmentUrls = const [],
     this.reactionCounts = const {},
     this.userReactions = const {},
@@ -163,6 +165,10 @@ class ActivityPostModel {
             const [],
         targetBatchIds: (json['targetBatchIds'] as List<dynamic>?)
                 ?.cast<String>()
+                .toList() ??
+            const [],
+        targetSemesters: (json['targetSemesters'] as List<dynamic>?)
+                ?.map((e) => (e as num).toInt())
                 .toList() ??
             const [],
         attachmentUrls: (json['attachmentUrls'] as List<dynamic>?)
@@ -210,6 +216,7 @@ class ActivityPostModel {
         'organizer': organizer,
         'targetCourseIds': targetCourseIds,
         'targetBatchIds': targetBatchIds,
+        'targetSemesters': targetSemesters,
         'attachmentUrls': attachmentUrls,
         'reactionCounts': reactionCounts,
         'userReactions': userReactions,
@@ -236,6 +243,7 @@ class ActivityPostModel {
     String? organizer,
     List<String>? targetCourseIds,
     List<String>? targetBatchIds,
+    List<int>? targetSemesters,
     List<String>? attachmentUrls,
     Map<String, int>? reactionCounts,
     Map<String, String>? userReactions,
@@ -260,6 +268,7 @@ class ActivityPostModel {
         organizer: organizer ?? this.organizer,
         targetCourseIds: targetCourseIds ?? this.targetCourseIds,
         targetBatchIds: targetBatchIds ?? this.targetBatchIds,
+        targetSemesters: targetSemesters ?? this.targetSemesters,
         attachmentUrls: attachmentUrls ?? this.attachmentUrls,
         reactionCounts: reactionCounts ?? this.reactionCounts,
         userReactions: userReactions ?? this.userReactions,

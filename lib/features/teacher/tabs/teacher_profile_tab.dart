@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:presenza/config/theme/app_colors.dart';
@@ -476,6 +477,17 @@ class TeacherProfileTab extends ConsumerWidget {
                   title: const Text('Session Security'),
                   subtitle: const Text('Dynamic QR tokenization & replay protection active'),
                   trailing: const Icon(Icons.verified_user_rounded, color: AppColors.success, size: 18),
+                ),
+                const Divider(height: 1),
+
+                ListTile(
+                  leading: const Icon(Icons.help_outline_rounded),
+                  title: const Text('Help & Support'),
+                  subtitle: const Text('Presenza Faculty documentation & FAQs'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () {
+                    context.push('/help');
+                  },
                 ),
                 const Divider(height: 1),
 

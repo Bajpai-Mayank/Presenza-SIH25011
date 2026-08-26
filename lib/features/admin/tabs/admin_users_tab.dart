@@ -136,7 +136,16 @@ class _AdminUsersTabState extends ConsumerState<AdminUsersTab> {
                               ],
                             ),
                           ),
-                          const RoleBadge(role: UserRole.student),
+                          if (student.user.role == UserRole.student)
+                            IconButton(
+                              icon: const Icon(Icons.edit_calendar_rounded, size: 20),
+                              tooltip: 'Correct Attendance',
+                              onPressed: () {
+                                AttendanceCorrectionModal.show(context, student);
+                              },
+                            )
+                          else
+                            const RoleBadge(role: UserRole.student),
                         ],
                       ),
                     );

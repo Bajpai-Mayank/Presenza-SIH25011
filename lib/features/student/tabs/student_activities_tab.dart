@@ -369,6 +369,8 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
     final activities = activitiesAsync.valueOrNull ?? [];
     final student = ref.watch(studentProfileProvider);
     final uid = student?.user.id ?? '';
+    final studentCourseId = student?.courseId;
+    final studentSemester = student?.semester;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Filter by search query and category
@@ -378,7 +380,16 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
           a.description.toLowerCase().contains(_searchQuery) ||
           a.authorName.toLowerCase().contains(_searchQuery);
       final matchesCat = _selectedCategory == null || a.category == _selectedCategory;
-      return matchesSearch && matchesCat;
+      
+      bool matchesTarget = true;
+      if (a.targetCourseIds.isNotEmpty && studentCourseId != null) {
+        if (!a.targetCourseIds.contains(studentCourseId)) matchesTarget = false;
+      }
+      if (a.targetSemesters.isNotEmpty && studentSemester != null) {
+        if (!a.targetSemesters.contains(studentSemester)) matchesTarget = false;
+      }
+
+      return matchesSearch && matchesCat && matchesTarget;
     }).toList();
 
     return Scaffold(

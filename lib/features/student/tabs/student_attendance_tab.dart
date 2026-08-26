@@ -147,6 +147,8 @@ class _StudentAttendanceTabState extends ConsumerState<StudentAttendanceTab> {
   @override
   Widget build(BuildContext context) {
     final subjects = ref.watch(subjectAttendanceProvider);
+    final recordsAsync = ref.watch(studentAttendanceRecordsProvider);
+    final allRecords = recordsAsync.valueOrNull ?? [];
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final filtered = subjects.where((sa) {
@@ -165,6 +167,30 @@ class _StudentAttendanceTabState extends ConsumerState<StudentAttendanceTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Calendar Overview
+            Text(
+              'Monthly Overview',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            AppCard(
+              padding: const EdgeInsets.all(16),
+              child: AttendanceCalendar(
+                records: allRecords,
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            Text(
+              'Subject Breakdown',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 12),
+
             // Filter Pills Row
             Row(
               children: [

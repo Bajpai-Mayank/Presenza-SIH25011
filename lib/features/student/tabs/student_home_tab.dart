@@ -22,6 +22,8 @@ class StudentHomeTab extends ConsumerWidget {
     final student = ref.watch(studentProfileProvider);
     final overallAttendance = ref.watch(overallAttendanceProvider);
     final subjects = ref.watch(subjectAttendanceProvider);
+    final enrolledCountAsync = ref.watch(enrolledStudentsCountProvider);
+    final enrolledCount = enrolledCountAsync.valueOrNull ?? 0;
     final scheduleAsync = ref.watch(todayScheduleProvider);
     final schedule = scheduleAsync.valueOrNull ?? [];
     final activitiesAsync = ref.watch(activitiesStreamProvider);
@@ -98,6 +100,19 @@ class StudentHomeTab extends ConsumerWidget {
                               fontWeight: FontWeight.w600,
                             ),
                       ),
+                      if (enrolledCount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            '$enrolledCount students in your batch',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: isDark
+                                      ? AppColors.textMutedDark
+                                      : AppColors.textMutedLight,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

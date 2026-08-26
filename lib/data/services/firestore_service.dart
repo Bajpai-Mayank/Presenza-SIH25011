@@ -6,6 +6,7 @@ import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/core/enums/attendance_status.dart';
 import 'package:presenza/core/enums/enums.dart';
+import 'package:presenza/data/models/user_session_model.dart';
 import 'package:uuid/uuid.dart';
 
 /// Result of a transaction-based attendance marking operation.
@@ -22,6 +23,8 @@ class AttendanceResult {
         record = null;
 }
 
+/// Provides all Cloud Firestore operations for Presenza.
+/// Acts as the primary backend implementation for database access.
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const _uuid = Uuid();
@@ -463,7 +466,13 @@ class FirestoreService {
       return snapshot.docs
           .map((doc) => LeaderboardEntryModel.fromJson(doc.data()))
           .toList()
-        ..sort((a, b) => a.rank.compareTo(b.rank));
+        ..sort((a, b) {
+          final percCmp = b.attendancePercentage.compareTo(a.attendancePercentage);
+          if (percCmp != 0) return percCmp;
+          final streakCmp = b.streak.compareTo(a.streak);
+          if (streakCmp != 0) return streakCmp;
+          return a.studentName.compareTo(b.studentName);
+        });
     });
   }
 
@@ -1004,5 +1013,81 @@ class FirestoreService {
   /// Seed sample campus activity announcements.
   Future<void> seedSampleActivities() async {
     await seedInitialAcademicData();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // USER SESSIONS (One Account = One Session)
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Creates a new active session for the user.
+  Future<void> createUserSession(UserSessionModel session) async {
+    await _db.collection('user_sessions').doc(session.sessionId).set(session.toMap());
+  }
+
+  /// Invalidates all other active sessions for this user.
+  Future<void> invalidateOtherSessions(String userId, String activeSessionId) async {
+    final batch = _db.batch();
+    final docs = await _db
+        .collection('user_sessions')
+        .where('userId', isEqualTo: userId)
+        .where('isActive', isEqualTo: true)
+        .get();
+    for (final doc in docs.docs) {
+      if (doc.id != activeSessionId) {
+        batch.update(doc.reference, {'isActive': false});
+      }
+    }
+    await batch.commit();
+  }
+
+  /// Streams a specific session to watch for invalidation.
+  Stream<UserSessionModel?> streamUserSession(String sessionId) {
+    return _db.collection('user_sessions').doc(sessionId).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      return UserSessionModel.fromMap(doc.data()!);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ATTENDANCE CORRECTION
+  // ══════════════════════════════════════════════════════════════════════
+
+  /// Administratively correct an attendance record and generate an audit log.
+  Future<void> correctAttendanceRecord({
+    required String recordId,
+    required String studentId,
+    required AttendanceStatus newStatus,
+    required String reason,
+    required String correctedByUid,
+    required String correctedByName,
+  }) async {
+    final recordRef = _db.collection('students').doc(studentId).collection('attendance').doc(recordId);
+    
+    await _db.runTransaction((txn) async {
+      final snap = await txn.get(recordRef);
+      if (!snap.exists || snap.data() == null) return;
+      
+      final oldData = snap.data()!;
+      final oldStatus = oldData['status'];
+      
+      txn.update(recordRef, {
+        'status': newStatus.name,
+        'locationVerified': true,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      
+      final auditRef = _db.collection('audit_logs').doc();
+      txn.set(auditRef, {
+        'type': 'attendance_correction',
+        'recordId': recordId,
+        'studentId': studentId,
+        'oldStatus': oldStatus,
+        'newStatus': newStatus.name,
+        'reason': reason,
+        'correctedByUid': correctedByUid,
+        'correctedByName': correctedByName,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+    });
   }
 }
