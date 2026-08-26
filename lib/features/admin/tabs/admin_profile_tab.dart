@@ -63,7 +63,7 @@ class _AdminProfileTabState extends ConsumerState<AdminProfileTab> {
             ),
             onPressed: () {
               Navigator.pop(ctx);
-              ref.read(authStateProvider.notifier).logout();
+              ref.read(authStatusProvider.notifier).logout();
             },
             child: const Text('Sign Out'),
           ),
