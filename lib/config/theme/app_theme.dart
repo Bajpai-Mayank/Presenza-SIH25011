@@ -81,7 +81,7 @@ class AppTheme {
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: AppColors.white,
+          fillColor: AppColors.cardLight,
           labelStyle: const TextStyle(color: AppColors.textSecondaryLight, fontSize: 14),
           hintStyle: const TextStyle(color: AppColors.textMutedLight, fontSize: 14),
           prefixIconColor: AppColors.textSecondaryLight,

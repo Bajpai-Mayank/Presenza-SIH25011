@@ -23,13 +23,14 @@ class AppColors {
   static const Color secondaryContainer = Color(0xFFCCFBF1);
   static const Color secondaryContainerDark = Color(0xFF134E4A);
 
-  // ── Light Surfaces (Eye-Comfort Cream Off-White & Crisp Clean Cards) ──
-  static const Color backgroundLight = Color(0xFFF6F8FA); // Soothing Warm Cream-Slate
-  static const Color surfaceLight = Color(0xFFFCFCFD);    // Soft Cream White
-  static const Color cardLight = Color(0xFFFFFFFF);       // Clean Crisp White Card
-  static const Color cardBorderLight = Color(0xFFE2E8F0); // Slate 200 Border
-  static const Color elevatedLight = Color(0xFFEEF2F6);   // Soft Elevated Container
-  static const Color creamWhite = Color(0xFFFAF9F6);      // Warm Cream White
+  // ── Light Surfaces (Eye-Comfort Light Yellowish-White Cream & Warm Blocks) ──
+  static const Color backgroundLight = Color(0xFFF9F7F1); // Soothing Light Yellowish-White Cream
+  static const Color surfaceLight = Color(0xFFFFFDF9);    // Warm Ivory Cream Surface
+  static const Color cardLight = Color(0xFFFFFDF8);       // Light Yellowish-White Cream Card Block
+  static const Color cardBorderLight = Color(0xFFEAE4D8); // Warm Cream Almond Border
+  static const Color elevatedLight = Color(0xFFF3EFE6);   // Warm Elevated Cream Container
+  static const Color creamWhite = Color(0xFFFBF8F2);      // Light Warm Cream
+  static const Color creamAlmond = Color(0xFFF5EFE3);     // Accent Cream
 
   // ── Dark Surfaces (Deep Navy / Charcoal, Never Pure Black) ───────
   static const Color backgroundDark = Color(0xFF0B1120); // Deep Navy Midnight
@@ -39,9 +40,9 @@ class AppColors {
   static const Color elevatedDark = Color(0xFF243248);   // Elevated Slate
 
   // ── Typography Colors ─────────────────────────────────────────────
-  static const Color textPrimaryLight = Color(0xFF0F172A);   // Deep Slate Navy 900 (High Contrast)
-  static const Color textSecondaryLight = Color(0xFF334155); // Slate 700 (Clean, Readable)
-  static const Color textMutedLight = Color(0xFF64748B);     // Slate 500 (Legible Muted)
+  static const Color textPrimaryLight = Color(0xFF1E2124);   // Deep Warm Charcoal (High Contrast & Eye-Relaxed)
+  static const Color textSecondaryLight = Color(0xFF4A4E54); // Warm Stone 700 (Clean, Readable)
+  static const Color textMutedLight = Color(0xFF767B83);     // Warm Stone 500 (Legible Muted)
 
   static const Color textPrimaryDark = Color(0xFFF8FAFC);   // Slate 50 (Crisp Warm White)
   static const Color textSecondaryDark = Color(0xFF94A3B8); // Slate 400
