@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:presenza/data/services/notification_service.dart';
 import 'firebase_options.dart';
 import 'app.dart';
@@ -45,24 +43,10 @@ void main() async {
     return;
   }
 
-  // Load environment variables and initialize Supabase Backup gracefully
-  try {
-    await dotenv.load(fileName: ".env");
-    final supabaseUrl = dotenv.env['SUPABASE_URL'];
-    final supabaseKey = dotenv.env['SUPABASE_PUBLISHABLE_KEY'];
-    if (supabaseUrl != null && supabaseUrl.isNotEmpty && supabaseKey != null && supabaseKey.isNotEmpty) {
-      await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseKey);
-      debugPrint('Supabase backup initialized successfully.');
-    } else {
-      debugPrint('Supabase env vars missing. Skipping backup initialization.');
-    }
-  } catch (e) {
-    debugPrint('Supabase initialization skipped: $e');
-  }
-
   runApp(
     const ProviderScope(
       child: MyApp(),
     ),
   );
 }
+
