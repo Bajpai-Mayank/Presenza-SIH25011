@@ -285,7 +285,7 @@ void main() {
 
       // Bottom sheet is open
       expect(find.text('Select Course / Program'), findsOneWidget);
-      final searchField = find.widgetWithText(TextField, 'Search course (e.g. CSE, B.Tech, MBA)...');
+      final searchField = find.widgetWithText(TextField, 'Search course (e.g. BS-MS, CSE, MBA, Law)...');
       expect(searchField, findsOneWidget);
 
       // Search for BS-MS
@@ -300,13 +300,31 @@ void main() {
       // Verify selected course is shown on the main screen
       expect(find.text('BS-MS Dual Degree (Integrated Sciences)'), findsOneWidget);
 
-      // Verify Year, Section, Sem dropdowns are present with default or selected values
-      expect(find.text('Year'), findsOneWidget);
-      expect(find.text('Section'), findsOneWidget);
+      // Test Year picker
+      expect(find.text('2026'), findsOneWidget);
+      await tester.tap(find.text('2026'));
+      await tester.pumpAndSettle();
+      expect(find.text('Select Admission / Batch Year'), findsOneWidget);
+      await tester.tap(find.text('2026').last);
+      await tester.pumpAndSettle();
+
+      // Test Section picker
+      expect(find.text('Sec D'), findsOneWidget);
+      await tester.tap(find.text('Sec D'));
+      await tester.pumpAndSettle();
+      expect(find.text('Select Section'), findsOneWidget);
+      await tester.tap(find.text('Sec D').last);
+      await tester.pumpAndSettle();
+
+      // Test Semester chips
       expect(find.text('Sem 1'), findsOneWidget);
+      await tester.tap(find.text('Sem 2'));
+      await tester.pumpAndSettle();
     });
   });
 }
+
+
 
 
 

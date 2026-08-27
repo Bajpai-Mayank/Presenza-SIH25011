@@ -622,31 +622,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final List<CourseModel> courses = (firestoreCourses.isNotEmpty ? firestoreCourses : _defaultCourses)
         .whereType<CourseModel>()
         .toList();
-    final batches = ref.watch(batchesProvider).valueOrNull ?? [];
 
-    // Filter batches by selected course
-    final availableBatches = batches.where((b) => b.courseId == _selectedCourseId).toList();
-    
-    // Academic years (2021 to 2027)
-    final defaultYears = [2021, 2022, 2023, 2024, 2025, 2026, 2027];
-    final batchYears = availableBatches.map((b) => b.year).toSet().toList();
-    final availableYears = (batchYears.isNotEmpty ? batchYears : defaultYears)..sort();
-    
-    // Sections
-    final defaultSections = ['A', 'B', 'C', 'D'];
-    final batchSections = availableBatches
-        .where((b) => b.year == _selectedYear)
-        .map((b) => b.section)
-        .toSet()
-        .toList();
-    final availableSections = (batchSections.isNotEmpty ? batchSections : defaultSections)..sort();
-
-    // Get max semesters
     final selectedCourse = courses.where((c) => c.id == _selectedCourseId).firstOrNull;
     final maxSemesters = selectedCourse?.totalSemesters ?? 8;
     if (_selectedSemester != null && _selectedSemester! > maxSemesters) {
       _selectedSemester = 1;
     }
+
+    // Default values if not yet picked
+    final currentYear = _selectedYear ?? 2026;
+    final currentSection = _selectedSection ?? 'D';
+    final currentSemester = _selectedSemester ?? 1;
 
     if (_selectedRole == UserRole.student) {
       return Column(
@@ -654,108 +640,119 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         children: [
           _buildPillTextField(
             controller: _idController,
-            hintText: 'Roll Number / Student ID',
+            hintText: 'Roll Number / Student ID (Optional)',
             isDark: isDark,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Student ID is required' : null,
           ),
           const SizedBox(height: 16),
+          
+          // ── Course Selection ──────────────────────────────────────────
+          Text(
+            'Academic Program / Course *',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
           _buildCoursePickerField(isDark, courses, selectedCourse),
           const SizedBox(height: 16),
+
+          // ── Year & Section Selectors ──────────────────────────────────
           Row(
             children: [
+              // Academic Year
               Expanded(
-                flex: 1,
-                child: _buildPillDropdown<int>(
-                  value: _selectedYear,
-                  hintText: 'Year',
-                  isDark: isDark,
-                  items: availableYears.map((y) {
-                    return DropdownMenuItem<int>(
-                      value: y,
-                      child: Text(
-                        y.toString(),
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 14,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Admission Year *',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : Colors.black87,
                       ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() {
-                        _selectedYear = val;
-                        // Auto match or update batch
-                        final match = availableBatches.where(
-                          (b) => b.year == val && b.section == (_selectedSection ?? 'A'),
-                        ).firstOrNull;
-                        _selectedBatchId = match?.id ?? 'batch_${_selectedCourseId ?? 'cse'}_${val}_${(_selectedSection ?? 'a').toLowerCase()}';
-                      });
-                    }
-                  },
-                  validator: (v) => v == null ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildYearPickerTile(isDark, currentYear),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
+              // Section
               Expanded(
-                flex: 1,
-                child: _buildPillDropdown<String>(
-                  value: _selectedSection,
-                  hintText: 'Section',
-                  isDark: isDark,
-                  items: availableSections.map((s) {
-                    return DropdownMenuItem<String>(
-                      value: s,
-                      child: Text(
-                        'Sec $s',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 14,
-                        ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Section *',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white70 : Colors.black87,
                       ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() {
-                        _selectedSection = val;
-                        final year = _selectedYear ?? DateTime.now().year;
-                        final match = availableBatches.where(
-                          (b) => b.year == year && b.section == val,
-                        ).firstOrNull;
-                        _selectedBatchId = match?.id ?? 'batch_${_selectedCourseId ?? 'cse'}_${year}_${val.toLowerCase()}';
-                      });
-                    }
-                  },
-                  validator: (v) => v == null ? 'Required' : null,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 1,
-                child: _buildPillDropdown<int>(
-                  value: _selectedSemester,
-                  hintText: 'Sem',
-                  isDark: isDark,
-                  items: List.generate(maxSemesters, (i) => i + 1).map((sem) {
-                    return DropdownMenuItem<int>(
-                      value: sem,
-                      child: Text(
-                        'Sem $sem',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                          fontSize: 14,
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) setState(() => _selectedSemester = val);
-                  },
-                  validator: (v) => v == null ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildSectionPickerTile(isDark, currentSection),
+                  ],
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Semester Selector ─────────────────────────────────────────
+          Text(
+            'Current Semester * (1 to $maxSemesters)',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 42,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: maxSemesters,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final sem = index + 1;
+                final isSelected = currentSemester == sem;
+                return InkWell(
+                  onTap: () {
+                    setState(() => _selectedSemester = sem);
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF4A72FF)
+                          : (isDark ? AppColors.surfaceDark : const Color(0xFFF1F5F9)),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF4A72FF)
+                            : (isDark ? Colors.white12 : Colors.black12),
+                      ),
+                    ),
+                    child: Text(
+                      'Sem $sem',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ],
       );
@@ -780,6 +777,258 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  Widget _buildYearPickerTile(bool isDark, int currentYear) {
+    return InkWell(
+      onTap: () => _showYearPickerSheet(context, isDark),
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : const Color(0xFFF5F6F8),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFF4A72FF).withValues(alpha: 0.5),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF4A72FF)),
+                const SizedBox(width: 8),
+                Text(
+                  _selectedYear != null ? '$_selectedYear' : '$currentYear',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionPickerTile(bool isDark, String currentSection) {
+    return InkWell(
+      onTap: () => _showSectionPickerSheet(context, isDark),
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : const Color(0xFFF5F6F8),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFF4A72FF).withValues(alpha: 0.5),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.group_outlined, size: 16, color: Color(0xFF4A72FF)),
+                const SizedBox(width: 8),
+                Text(
+                  'Sec ${_selectedSection ?? currentSection}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: isDark ? Colors.white70 : Colors.black54),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showYearPickerSheet(BuildContext context, bool isDark) {
+    final years = [2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Select Admission / Batch Year',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 2.2,
+                ),
+                itemCount: years.length,
+                itemBuilder: (context, index) {
+                  final y = years[index];
+                  final isSelected = (_selectedYear ?? 2026) == y;
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedYear = y;
+                        final section = _selectedSection ?? 'D';
+                        _selectedBatchId = 'batch_${_selectedCourseId ?? 'bsms'}_${y}_${section.toLowerCase()}';
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF4A72FF)
+                            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF4A72FF) : Colors.transparent,
+                        ),
+                      ),
+                      child: Text(
+                        '$y',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSectionPickerSheet(BuildContext context, bool isDark) {
+    final sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Select Section',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: 1.8,
+                ),
+                itemCount: sections.length,
+                itemBuilder: (context, index) {
+                  final s = sections[index];
+                  final isSelected = (_selectedSection ?? 'D') == s;
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedSection = s;
+                        final year = _selectedYear ?? 2026;
+                        _selectedBatchId = 'batch_${_selectedCourseId ?? 'bsms'}_${year}_${s.toLowerCase()}';
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFF4A72FF)
+                            : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF4A72FF) : Colors.transparent,
+                        ),
+                      ),
+                      child: Text(
+                        'Sec $s',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildCoursePickerField(bool isDark, List<CourseModel> courses, CourseModel? selectedCourse) {
     final hasSelection = selectedCourse != null;
     
@@ -792,8 +1041,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           color: isDark ? AppColors.surfaceDark : const Color(0xFFF5F6F8),
           borderRadius: BorderRadius.circular(30),
           border: Border.all(
-            color: hasSelection ? const Color(0xFF4A72FF) : Colors.transparent,
-            width: hasSelection ? 1.5 : 0,
+            color: hasSelection ? const Color(0xFF4A72FF) : (isDark ? Colors.white12 : Colors.black12),
+            width: hasSelection ? 1.5 : 1.0,
           ),
         ),
         child: Row(
@@ -838,17 +1087,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       ),
       builder: (ctx) {
         String searchQuery = '';
+        String selectedCategory = 'All';
+
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final filteredCourses = courses.where((c) {
               final q = searchQuery.toLowerCase();
-              return c.name.toLowerCase().contains(q) ||
+              final matchesQuery = c.name.toLowerCase().contains(q) ||
                   c.code.toLowerCase().contains(q) ||
                   c.departmentId.toLowerCase().contains(q);
+
+              if (selectedCategory == 'All') return matchesQuery;
+              if (selectedCategory == 'Engineering') return matchesQuery && (c.code.contains('BTECH') || c.code.contains('MTECH'));
+              if (selectedCategory == 'Sciences & Dual Degree') return matchesQuery && (c.code.contains('BS-MS') || c.code.contains('BSC') || c.code.contains('MSC'));
+              if (selectedCategory == 'Computer Apps') return matchesQuery && (c.code.contains('BCA') || c.code.contains('MCA'));
+              if (selectedCategory == 'Management') return matchesQuery && (c.code.contains('BBA') || c.code.contains('MBA') || c.code.contains('COM'));
+              if (selectedCategory == 'Law') return matchesQuery && c.code.contains('LL');
+              if (selectedCategory == 'Pharmacy') return matchesQuery && c.code.contains('PHARM');
+              if (selectedCategory == 'Design') return matchesQuery && c.code.contains('DES');
+              if (selectedCategory == 'Doctoral') return matchesQuery && c.code.contains('PHD');
+              return matchesQuery;
             }).toList();
 
+            final categories = [
+              'All',
+              'Engineering',
+              'Sciences & Dual Degree',
+              'Computer Apps',
+              'Management',
+              'Law',
+              'Pharmacy',
+              'Design',
+              'Doctoral',
+            ];
+
             return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
+              height: MediaQuery.of(context).size.height * 0.85,
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
               child: Column(
                 children: [
@@ -888,7 +1162,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     autofocus: false,
                     style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                     decoration: InputDecoration(
-                      hintText: 'Search course (e.g. CSE, B.Tech, MBA)...',
+                      hintText: 'Search course (e.g. BS-MS, CSE, MBA, Law)...',
                       hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
                       prefixIcon: Icon(Icons.search_rounded, color: isDark ? Colors.white54 : Colors.black38),
                       filled: true,
@@ -903,7 +1177,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       setSheetState(() => searchQuery = val);
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
+                  // Category Filter Chips
+                  SizedBox(
+                    height: 36,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: categories.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final cat = categories[index];
+                        final isSelected = selectedCategory == cat;
+                        return InkWell(
+                          onTap: () => setSheetState(() => selectedCategory = cat),
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF4A72FF)
+                                  : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Text(
+                              cat,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Expanded(
                     child: filteredCourses.isEmpty
                         ? Center(
@@ -924,8 +1233,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                   setState(() {
                                     _selectedCourseId = course.id;
                                     _selectedSemester = 1;
-                                    final year = _selectedYear ?? DateTime.now().year;
-                                    final section = _selectedSection ?? 'A';
+                                    final year = _selectedYear ?? 2026;
+                                    final section = _selectedSection ?? 'D';
                                     _selectedBatchId = 'batch_${course.id}_${year}_${section.toLowerCase()}';
                                   });
                                   Navigator.pop(ctx);
@@ -1005,6 +1314,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       },
     );
   }
+
 
   Widget _buildPillTextField({
     required TextEditingController controller,
