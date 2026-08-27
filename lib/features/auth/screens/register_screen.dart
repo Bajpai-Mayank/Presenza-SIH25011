@@ -619,9 +619,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Widget _buildRoleSpecificFields(bool isDark) {
     final firestoreCourses = ref.watch(coursesProvider).valueOrNull ?? [];
-    final List<CourseModel> courses = (firestoreCourses.isNotEmpty ? firestoreCourses : _defaultCourses)
-        .whereType<CourseModel>()
-        .toList();
+    // Merge default courses with Firestore courses so every program is ALWAYS available
+    final Map<String, CourseModel> courseMap = {
+      for (final c in _defaultCourses) c.id: c,
+      for (final c in firestoreCourses) c.id: c,
+    };
+    final List<CourseModel> courses = courseMap.values.toList();
 
     final selectedCourse = courses.where((c) => c.id == _selectedCourseId).firstOrNull;
     final maxSemesters = selectedCourse?.totalSemesters ?? 8;
@@ -1214,21 +1217,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                   const SizedBox(height: 12),
                   Expanded(
-                    child: filteredCourses.isEmpty
-                        ? Center(
-                            child: Text(
-                              'No matching courses found',
-                              style: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
+                    child: ListView(
+                      children: [
+                        if (filteredCourses.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: Text(
+                                'No courses match "$searchQuery"',
+                                style: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
+                              ),
                             ),
                           )
-                        : ListView.separated(
-                            itemCount: filteredCourses.length,
-                            separatorBuilder: (context, index) => const SizedBox(height: 8),
-                            itemBuilder: (context, idx) {
-                              final course = filteredCourses[idx];
-                              final isSelected = course.id == _selectedCourseId;
-
-                              return InkWell(
+                        else
+                          ...filteredCourses.map((course) {
+                            final isSelected = course.id == _selectedCourseId;
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: InkWell(
                                 onTap: () {
                                   setState(() {
                                     _selectedCourseId = course.id;
@@ -1302,9 +1308,46 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     ],
                                   ),
                                 ),
-                              );
-                            },
+                              ),
+                            );
+                          }),
+                        const SizedBox(height: 12),
+                        // Custom Course Option
+                        InkWell(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showCustomCourseDialog(context, isDark);
+                          },
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4A72FF).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: const Color(0xFF4A72FF).withValues(alpha: 0.4),
+                                style: BorderStyle.solid,
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_circle_outline_rounded, color: Color(0xFF4A72FF), size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Other Degree / Custom Program',
+                                  style: TextStyle(
+                                    color: Color(0xFF4A72FF),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1314,6 +1357,110 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       },
     );
   }
+
+  void _showCustomCourseDialog(BuildContext context, bool isDark) {
+    final customNameController = TextEditingController();
+    final customCodeController = TextEditingController();
+    int customSemesters = 8;
+
+    showDialog(
+      context: context,
+      builder: (dCtx) {
+        return StatefulBuilder(
+          builder: (context, setDlgState) {
+            return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text(
+                'Enter Custom Degree / Course',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: customNameController,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    decoration: InputDecoration(
+                      hintText: 'Program Name (e.g. BS-MS Physics, B.Arch)',
+                      hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customCodeController,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    decoration: InputDecoration(
+                      hintText: 'Degree Code (e.g. BSMS-PHY, BARCH)',
+                      hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 13),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total Semesters: $customSemesters',
+                        style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 14),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: customSemesters > 1 ? () => setDlgState(() => customSemesters--) : null,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: customSemesters < 12 ? () => setDlgState(() => customSemesters++) : null,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dCtx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final name = customNameController.text.trim();
+                    final code = customCodeController.text.trim();
+                    if (name.isNotEmpty) {
+                      final generatedId = 'course-custom-${DateTime.now().millisecondsSinceEpoch}';
+                      final newCourse = CourseModel(
+                        id: generatedId,
+                        name: name,
+                        code: code.isNotEmpty ? code.toUpperCase() : 'CUSTOM',
+                        departmentId: 'dept-general',
+                        totalSemesters: customSemesters,
+                      );
+                      setState(() {
+                        _selectedCourseId = newCourse.id;
+                        _selectedSemester = 1;
+                        final year = _selectedYear ?? 2026;
+                        final section = _selectedSection ?? 'D';
+                        _selectedBatchId = 'batch_${newCourse.id}_${year}_${section.toLowerCase()}';
+                      });
+                      Navigator.pop(dCtx);
+                    }
+                  },
+                  child: const Text('Select Course'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
 
 
   Widget _buildPillTextField({
