@@ -522,13 +522,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
                               'Already have an account? ',
                               style: TextStyle(
                                 color: isDark ? Colors.white70 : Colors.black54,
+                                fontSize: 13,
                               ),
                             ),
                             GestureDetector(
@@ -538,12 +540,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 style: TextStyle(
                                   color: Color(0xFF4A72FF),
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                                  fontSize: 13,
                                 ),
                               ),
                             ),
                           ],
                         ),
+
                         const SizedBox(height: 40),
                       ],
                     ),
@@ -1071,22 +1074,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       menuMaxHeight: 320,
       icon: Icon(
         Icons.keyboard_arrow_down_rounded,
+        size: 18,
         color: isDark ? Colors.white70 : Colors.black54,
       ),
       style: TextStyle(
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: FontWeight.w500,
         color: isDark ? Colors.white : Colors.black87,
       ),
       decoration: InputDecoration(
+        isDense: true,
         hintText: hintText,
         hintStyle: TextStyle(
           color: isDark ? Colors.white38 : Colors.black38,
-          fontSize: 13,
+          fontSize: 12,
         ),
         filled: true,
         fillColor: isDark ? AppColors.surfaceDark : const Color(0xFFF5F6F8),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,
@@ -1107,6 +1112,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 }
+
 
 
 

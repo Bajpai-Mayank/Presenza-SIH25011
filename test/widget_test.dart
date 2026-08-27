@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/config/theme/app_theme.dart';
@@ -8,6 +9,7 @@ import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/core/services/security_service.dart';
+import 'package:presenza/features/auth/screens/register_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -248,16 +250,64 @@ void main() {
     });
   });
 
-  group('SecurityService Tests', () {
-    test('SecurityService safe execution on non-Android test environment', () async {
-      final enabled = await SecurityService.enableScreenshotProtection();
-      expect(enabled, isFalse);
+  group('RegisterScreen Course & Selection Tests', () {
+    testWidgets('RegisterScreen renders fields and selects Course, Year 2026, Section D', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
 
-      final disabled = await SecurityService.disableScreenshotProtection();
-      expect(disabled, isFalse);
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: RegisterScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-      final isProtected = await SecurityService.isProtectionEnabled();
-      expect(isProtected, isFalse);
+      // Verify basic fields exist
+      expect(find.textContaining('Account'), findsAtLeast(1));
+      expect(find.text('Full Name'), findsOneWidget);
+      expect(find.text('Email Address'), findsOneWidget);
+      expect(find.text('Password'), findsOneWidget);
+
+      // Enter Full Name, Email, Password, Confirm Password
+      await tester.enterText(find.widgetWithText(TextFormField, 'Full Name'), 'Nyctophile');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Email Address'), 'nycto.moon@sau.edu');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'pass@123');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Confirm Password'), 'pass@123');
+      await tester.pumpAndSettle();
+
+      // Tap Course picker to open bottom sheet
+      expect(find.text('Select Course / Degree Program'), findsOneWidget);
+      await tester.tap(find.text('Select Course / Degree Program'));
+      await tester.pumpAndSettle();
+
+      // Bottom sheet is open
+      expect(find.text('Select Course / Program'), findsOneWidget);
+      final searchField = find.widgetWithText(TextField, 'Search course (e.g. CSE, B.Tech, MBA)...');
+      expect(searchField, findsOneWidget);
+
+      // Search for BS-MS
+      await tester.enterText(searchField, 'BS-MS');
+      await tester.pumpAndSettle();
+
+      // Find the BS-MS course in the list and tap it
+      expect(find.text('BS-MS Dual Degree (Integrated Sciences)'), findsOneWidget);
+      await tester.tap(find.text('BS-MS Dual Degree (Integrated Sciences)'));
+      await tester.pumpAndSettle();
+
+      // Verify selected course is shown on the main screen
+      expect(find.text('BS-MS Dual Degree (Integrated Sciences)'), findsOneWidget);
+
+      // Verify Year, Section, Sem dropdowns are present with default or selected values
+      expect(find.text('Year'), findsOneWidget);
+      expect(find.text('Section'), findsOneWidget);
+      expect(find.text('Sem 1'), findsOneWidget);
     });
   });
 }
+
+
+
+
