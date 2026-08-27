@@ -280,14 +280,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Future<void> _handleRegister() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedRole == UserRole.student && (_selectedCourseId == null || _selectedBatchId == null || _selectedSemester == null)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a course, batch, section, and semester.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
+    if (_selectedRole == UserRole.student) {
+      if (_selectedCourseId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select your Course / Degree Program.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -347,12 +349,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       );
 
       if (_selectedRole == UserRole.student) {
+        final year = _selectedYear ?? now.year;
+        final section = _selectedSection ?? 'A';
+        final batchId = _selectedBatchId ?? 'batch_${_selectedCourseId}_${year}_${section.toLowerCase()}';
+        final semester = _selectedSemester ?? 1;
+
         final studentModel = StudentModel(
           user: userModel,
           studentId: idNumber.isNotEmpty ? idNumber : 'STU-${now.millisecondsSinceEpoch.toString().substring(7)}',
           courseId: _selectedCourseId!,
-          batchId: _selectedBatchId!,
-          semester: _selectedSemester ?? 1,
+          batchId: batchId,
+          semester: semester,
           enrollmentDate: now,
         );
         await firestoreService.registerStudentAtomically(
@@ -522,7 +529,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               'Already have an account? ',
                               style: TextStyle(
                                 color: isDark ? Colors.white70 : Colors.black54,
-                                fontSize: 14,
                               ),
                             ),
                             GestureDetector(
@@ -618,7 +624,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     // Filter batches by selected course
     final availableBatches = batches.where((b) => b.courseId == _selectedCourseId).toList();
     
-    // Academic years (2021 to 2027 for complete exposure)
+    // Academic years (2021 to 2027)
     final defaultYears = [2021, 2022, 2023, 2024, 2025, 2026, 2027];
     final batchYears = availableBatches.map((b) => b.year).toSet().toList();
     final availableYears = (batchYears.isNotEmpty ? batchYears : defaultYears)..sort();
@@ -636,11 +642,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final selectedCourse = courses.where((c) => c.id == _selectedCourseId).firstOrNull;
     final maxSemesters = selectedCourse?.totalSemesters ?? 8;
     if (_selectedSemester != null && _selectedSemester! > maxSemesters) {
-      _selectedSemester = null;
+      _selectedSemester = 1;
     }
 
     if (_selectedRole == UserRole.student) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildPillTextField(
             controller: _idController,
@@ -649,27 +656,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             validator: (v) => v == null || v.trim().isEmpty ? 'Student ID is required' : null,
           ),
           const SizedBox(height: 16),
-          _buildPillDropdown<String>(
-            value: _selectedCourseId,
-            hintText: 'Course / Degree Program',
-            isDark: isDark,
-            items: courses.map((c) {
-              return DropdownMenuItem(
-                value: c.id,
-                child: Text(c.name, overflow: TextOverflow.ellipsis),
-              );
-            }).toList(),
-            onChanged: (val) {
-              if (val != null) {
-                setState(() {
-                  _selectedCourseId = val;
-                  _selectedBatchId = null; // reset batch when course changes
-                  _selectedSemester = 1;
-                });
-              }
-            },
-            validator: (v) => v == null ? 'Course is required' : null,
-          ),
+          _buildCoursePickerField(isDark, courses, selectedCourse),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -680,17 +667,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   hintText: 'Year',
                   isDark: isDark,
                   items: availableYears.map((y) {
-                    return DropdownMenuItem(
+                    return DropdownMenuItem<int>(
                       value: y,
-                      child: Text(y.toString()),
+                      child: Text(
+                        y.toString(),
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                      ),
                     );
                   }).toList(),
                   onChanged: (val) {
                     if (val != null) {
                       setState(() {
                         _selectedYear = val;
-                        _selectedSection = null;
-                        _selectedBatchId = null;
+                        // Auto match or update batch
+                        final match = availableBatches.where(
+                          (b) => b.year == val && b.section == (_selectedSection ?? 'A'),
+                        ).firstOrNull;
+                        _selectedBatchId = match?.id ?? 'batch_${_selectedCourseId ?? 'cse'}_${val}_${(_selectedSection ?? 'a').toLowerCase()}';
                       });
                     }
                   },
@@ -705,20 +701,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   hintText: 'Section',
                   isDark: isDark,
                   items: availableSections.map((s) {
-                    return DropdownMenuItem(
+                    return DropdownMenuItem<String>(
                       value: s,
-                      child: Text(s),
+                      child: Text(
+                        'Sec $s',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                      ),
                     );
                   }).toList(),
                   onChanged: (val) {
                     if (val != null) {
                       setState(() {
                         _selectedSection = val;
-                        // Find or generate matching batch
+                        final year = _selectedYear ?? DateTime.now().year;
                         final match = availableBatches.where(
-                          (b) => b.year == _selectedYear && b.section == val,
+                          (b) => b.year == year && b.section == val,
                         ).firstOrNull;
-                        _selectedBatchId = match?.id ?? 'batch_${_selectedCourseId ?? 'cse'}_${_selectedYear ?? 2024}_${val.toLowerCase()}';
+                        _selectedBatchId = match?.id ?? 'batch_${_selectedCourseId ?? 'cse'}_${year}_${val.toLowerCase()}';
                       });
                     }
                   },
@@ -733,9 +735,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   hintText: 'Sem',
                   isDark: isDark,
                   items: List.generate(maxSemesters, (i) => i + 1).map((sem) {
-                    return DropdownMenuItem(
+                    return DropdownMenuItem<int>(
                       value: sem,
-                      child: Text('Sem $sem'),
+                      child: Text(
+                        'Sem $sem',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                      ),
                     );
                   }).toList(),
                   onChanged: (val) {
@@ -760,13 +768,239 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           const SizedBox(height: 16),
           _buildPillTextField(
             controller: _deptController,
-            hintText: 'Department',
+            hintText: 'Department (e.g. Computer Science)',
             isDark: isDark,
             validator: (v) => v == null || v.trim().isEmpty ? 'Department is required' : null,
           ),
         ],
       );
     }
+  }
+
+  Widget _buildCoursePickerField(bool isDark, List<CourseModel> courses, CourseModel? selectedCourse) {
+    final hasSelection = selectedCourse != null;
+    
+    return InkWell(
+      onTap: () => _showCourseSelectionSheet(context, isDark, courses),
+      borderRadius: BorderRadius.circular(30),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : const Color(0xFFF5F6F8),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: hasSelection ? const Color(0xFF4A72FF) : Colors.transparent,
+            width: hasSelection ? 1.5 : 0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.school_rounded,
+              size: 20,
+              color: hasSelection ? const Color(0xFF4A72FF) : (isDark ? Colors.white54 : Colors.black38),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                selectedCourse?.name ?? 'Select Course / Degree Program',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: hasSelection ? FontWeight.w600 : FontWeight.normal,
+                  color: hasSelection
+                      ? (isDark ? Colors.white : Colors.black87)
+                      : (isDark ? Colors.white38 : Colors.black38),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCourseSelectionSheet(BuildContext context, bool isDark, List<CourseModel> courses) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        String searchQuery = '';
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final filteredCourses = courses.where((c) {
+              final q = searchQuery.toLowerCase();
+              return c.name.toLowerCase().contains(q) ||
+                  c.code.toLowerCase().contains(q) ||
+                  c.departmentId.toLowerCase().contains(q);
+            }).toList();
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                children: [
+                  // Handle bar
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Select Course / Program',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        color: isDark ? Colors.white70 : Colors.black54,
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Search Bar
+                  TextField(
+                    autofocus: false,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                    decoration: InputDecoration(
+                      hintText: 'Search course (e.g. CSE, B.Tech, MBA)...',
+                      hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                      prefixIcon: Icon(Icons.search_rounded, color: isDark ? Colors.white54 : Colors.black38),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setSheetState(() => searchQuery = val);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: filteredCourses.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No matching courses found',
+                              style: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
+                            ),
+                          )
+                        : ListView.separated(
+                            itemCount: filteredCourses.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 8),
+                            itemBuilder: (context, idx) {
+                              final course = filteredCourses[idx];
+                              final isSelected = course.id == _selectedCourseId;
+
+                              return InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedCourseId = course.id;
+                                    _selectedSemester = 1;
+                                    final year = _selectedYear ?? DateTime.now().year;
+                                    final section = _selectedSection ?? 'A';
+                                    _selectedBatchId = 'batch_${course.id}_${year}_${section.toLowerCase()}';
+                                  });
+                                  Navigator.pop(ctx);
+                                },
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF4A72FF).withValues(alpha: 0.12)
+                                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC)),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: isSelected ? const Color(0xFF4A72FF) : Colors.transparent,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF4A72FF).withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          course.code,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF4A72FF),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              course.name,
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w600,
+                                                color: isDark ? Colors.white : Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '${course.totalSemesters} Semesters',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: isDark ? Colors.white54 : Colors.black54,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      if (isSelected)
+                                        const Icon(
+                                          Icons.check_circle_rounded,
+                                          color: Color(0xFF4A72FF),
+                                          size: 20,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildPillTextField({
@@ -824,24 +1058,35 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     required void Function(T?) onChanged,
     String? Function(T?)? validator,
   }) {
+    final validValue = items.any((i) => i.value == value) ? value : null;
+
     return DropdownButtonFormField<T>(
+      key: ValueKey(validValue),
+      initialValue: validValue,
       isExpanded: true,
-      initialValue: value,
       items: items,
       onChanged: onChanged,
       validator: validator,
+      dropdownColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+      menuMaxHeight: 320,
+      icon: Icon(
+        Icons.keyboard_arrow_down_rounded,
+        color: isDark ? Colors.white70 : Colors.black54,
+      ),
       style: TextStyle(
-        fontSize: 15,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
         color: isDark ? Colors.white : Colors.black87,
       ),
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: TextStyle(
           color: isDark ? Colors.white38 : Colors.black38,
+          fontSize: 13,
         ),
         filled: true,
         fillColor: isDark ? AppColors.surfaceDark : const Color(0xFFF5F6F8),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,
@@ -862,4 +1107,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 }
+
+
 
