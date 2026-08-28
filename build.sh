@@ -3,29 +3,37 @@ set -e
 
 echo "=== Starting Flutter Web Build for Vercel ==="
 
-# Configure git safe directory
+# Configure git safe directory globally
 git config --global --add safe.directory "*" || true
 
-# Check if flutter is already installed, if not, download it
-if ! command -v flutter &> /dev/null; then
-  echo "Downloading Flutter SDK..."
-  if [ ! -d "_flutter" ]; then
-    git clone https://github.com/flutter/flutter.git --depth 1 -b stable _flutter
-  fi
-  export PATH="$PWD/_flutter/bin:$PATH"
+# Clone Flutter SDK if not present
+if [ ! -d "flutter" ]; then
+  echo "Downloading Flutter SDK (stable channel)..."
+  git clone https://github.com/flutter/flutter.git --depth 1 -b stable flutter
 fi
 
+# Ensure newly cloned flutter repo is trusted by git
+git config --global --add safe.directory "$PWD/flutter" || true
+git config --global --add safe.directory "$PWD" || true
+
+# Set environment variables
+export FLUTTER_ROOT="$PWD/flutter"
+export PATH="$PWD/flutter/bin:$PATH"
+
 echo "Configuring Flutter..."
-flutter config --no-analytics || true
-flutter config --enable-web || true
+./flutter/bin/flutter config --no-analytics || true
+./flutter/bin/flutter config --enable-web || true
 
-echo "Flutter version:"
-flutter --version
+echo "Checking Flutter environment..."
+./flutter/bin/flutter --version
 
-echo "Fetching dependencies..."
-flutter pub get
+echo "Ensuring environment file exists..."
+touch .env
 
-echo "Building Flutter Web Release..."
-flutter build web --release --no-tree-shake-icons
+echo "Fetching Flutter dependencies..."
+./flutter/bin/flutter pub get
 
-echo "=== Build completed successfully! Output directory: build/web ==="
+echo "Building Flutter Web Production Bundle..."
+./flutter/bin/flutter build web --release --no-tree-shake-icons
+
+echo "=== Build completed successfully! Output in build/web ==="

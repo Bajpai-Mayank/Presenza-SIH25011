@@ -53,4 +53,5 @@ local.properties
 key.properties
 GoogleService-Info.plist
 _flutter/
+flutter/
 
