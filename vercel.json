@@ -1,11 +1,10 @@
 {
   "version": 2,
   "outputDirectory": "build/web",
-  "framework": null,
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }
   ],
@@ -32,7 +31,25 @@
       ]
     },
     {
-      "source": "/(flutter.js|flutter_bootstrap.js|main.dart.js|assets/(.*))",
+      "source": "/assets/:match*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/:file(.*\\.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/:file(.*\\.wasm)",
       "headers": [
         {
           "key": "Cache-Control",
