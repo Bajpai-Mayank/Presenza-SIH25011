@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:presenza/core/enums/user_role.dart';
+import 'package:presenza/data/models/auth_state.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/providers/app_providers.dart';
@@ -20,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -49,11 +52,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  void _routeForRole(UserRole role) {
+    switch (role) {
+      case UserRole.student:
+        context.go('/student');
+        break;
+      case UserRole.teacher:
+        context.go('/teacher');
+        break;
+      case UserRole.admin:
+        context.go('/admin');
+        break;
+    }
+  }
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
     
-    // The loading state is now managed by authStatusProvider, but we can keep local state for immediate UI feedback.
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     final errorMessage = await ref
         .read(authStatusProvider.notifier)
@@ -68,10 +87,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         await prefs.remove('remember_me_email');
         await prefs.setBool('remember_me_enabled', false);
       }
+      
+      // If already authenticated, route immediately
+      final authState = ref.read(authStatusProvider);
+      if (authState.status == AuthStatus.authenticated && authState.user != null) {
+        if (mounted) _routeForRole(authState.user!.role);
+        return;
+      }
     }
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _errorMessage = errorMessage;
+      });
       if (errorMessage != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -91,6 +120,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authStatusProvider, (previous, next) {
+      if (next.status == AuthStatus.authenticated && next.user != null) {
+        _routeForRole(next.user!.role);
+      } else if (next.status == AuthStatus.profileMissing) {
+        context.go('/no-profile');
+      } else if (next.status == AuthStatus.error && next.errorMessage != null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = next.errorMessage;
+        });
+      }
+    });
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
@@ -225,7 +267,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
+                        if (_errorMessage != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.35)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Color(0xFFEF4444), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _errorMessage!,
+                                    style: const TextStyle(
+                                      color: Color(0xFFEF4444),
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         SizedBox(
                           width: double.infinity,
                           height: 50,

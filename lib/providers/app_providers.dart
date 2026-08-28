@@ -91,18 +91,51 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
         state = const AuthState.fetchingProfile();
         try {
           final firestoreService = _ref.read(firestoreServiceProvider);
-          final userModel = await firestoreService.getUserModel(user.uid).timeout(
+          UserModel? userModel = await firestoreService.getUserModel(user.uid).timeout(
             const Duration(seconds: 10),
             onTimeout: () => throw TimeoutException('Profile fetch timeout'),
           );
           
           if (userModel != null) {
             state = AuthState.authenticated(userModel);
-
-            // Start session monitor in background, do not block
             _monitorSession(firestoreService);
           } else {
-            state = const AuthState.profileMissing();
+            // Auto-provision user model for existing Firebase Auth users who don't have Firestore doc yet
+            final email = user.email ?? '';
+            final defaultRole = (email.contains('faculty') || email.contains('teacher'))
+                ? UserRole.teacher
+                : (email == 'admin@presenza.edu' ? UserRole.admin : UserRole.student);
+            
+            final name = user.displayName ?? (email.isNotEmpty ? email.split('@').first : 'Student');
+            
+            final synthesizedUser = UserModel(
+              id: user.uid,
+              email: email,
+              name: name,
+              role: defaultRole,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            );
+            
+            try {
+              await firestoreService.saveUserModel(synthesizedUser);
+              if (defaultRole == UserRole.student) {
+                final student = StudentModel(
+                  user: synthesizedUser,
+                  studentId: 'STU-${user.uid.length >= 6 ? user.uid.substring(0, 6).toUpperCase() : "001"}',
+                  courseId: 'course-btech-cse',
+                  batchId: 'batch-2024-a',
+                  semester: 1,
+                  enrollmentDate: DateTime.now(),
+                );
+                await firestoreService.saveStudentProfile(student);
+              }
+              state = AuthState.authenticated(synthesizedUser);
+              _monitorSession(firestoreService);
+            } catch (saveError) {
+              debugPrint('Auto-profile save fallback error: $saveError');
+              state = const AuthState.profileMissing();
+            }
           }
         } catch (e) {
           debugPrint('AuthStatusNotifier: Failed to load profile: $e');
@@ -141,12 +174,10 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       // Use timeout for auth sign in
       final result = await authService.signIn(email: email, password: password).timeout(
         const Duration(seconds: 15),
-        onTimeout: () => AuthResult.error('Login timed out. Check your internet connection.'),
+        onTimeout: () => AuthResult.error('Login timed out. Please check your internet connection.'),
       );
       
       if (result.success && result.user != null) {
-        final firestoreService = _ref.read(firestoreServiceProvider);
-        
         final prefs = await SharedPreferences.getInstance();
         String? deviceId = prefs.getString('persistent_device_id');
         if (deviceId == null) {
@@ -154,18 +185,12 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
           await prefs.setString('persistent_device_id', deviceId);
         }
 
-        final hasOtherActiveSession = await firestoreService.hasActiveSession(result.user!.uid, deviceId);
-        if (hasOtherActiveSession) {
-          await FirebaseAuth.instance.signOut();
-          state = const AuthState.unauthenticated();
-          return 'This account is already active on another device.';
-        }
-
-        unawaited(_performSessionBookkeeping(result.user!.uid, deviceId));
+        // Register active session & deactivate old sessions smoothly
+        await _performSessionBookkeeping(result.user!.uid, deviceId);
         return null; // success
       }
       state = const AuthState.unauthenticated(); // Reset on error
-      return result.errorMessage;
+      return result.errorMessage ?? 'Invalid email or password.';
     } catch (e) {
       state = const AuthState.unauthenticated();
       return 'An unexpected error occurred: $e';
