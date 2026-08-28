@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +21,8 @@ class SecurityService {
   static Stream<SecurityEvent> get securityEvents => _eventController.stream;
 
   static void initialize() {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'onScreenCaptured':
@@ -41,7 +42,7 @@ class SecurityService {
 
   /// Enables screenshot and screen recording protection (Android FLAG_SECURE).
   static Future<bool> enableScreenshotProtection() async {
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       return false;
     }
     try {
@@ -58,7 +59,7 @@ class SecurityService {
 
   /// Disables screenshot and screen recording protection.
   static Future<bool> disableScreenshotProtection() async {
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       return false;
     }
     try {
@@ -75,7 +76,7 @@ class SecurityService {
 
   /// Checks if screenshot protection is currently active on Android.
   static Future<bool> isProtectionEnabled() async {
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       return false;
     }
     try {
@@ -88,7 +89,7 @@ class SecurityService {
   
   /// Checks if the app is currently in multi-window mode.
   static Future<bool> isMultiWindowMode() async {
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       return false;
     }
     try {

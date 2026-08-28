@@ -137,7 +137,7 @@ class _StudentShellState extends ConsumerState<StudentShell> {
         onNavigateToActivities: () => setState(() => _currentIndex = 3),
       ),
       const StudentAttendanceTab(),
-      const QrScannerScreen(),
+      _currentIndex == 2 ? const QrScannerScreen() : const SizedBox.shrink(),
       const StudentActivitiesTab(),
       const StudentProfileTab(),
     ];

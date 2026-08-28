@@ -24,6 +24,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   bool _hasNavigated = false;
   Timer? _timer;
   Timer? _fallbackTimer;
+  ProviderSubscription<AuthState>? _authSub;
 
   @override
   void initState() {
@@ -57,6 +58,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _animController.forward();
 
+    // Listen to auth status safely
+    _authSub = ref.listenManual<AuthState>(authStatusProvider, (previous, next) {
+      if (_minDurationElapsed) {
+        _checkAndNavigate();
+      }
+    });
+
     // 1. Min branded duration (~1.0s)
     _timer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) {
@@ -75,6 +83,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   void dispose() {
+    _authSub?.close();
     _timer?.cancel();
     _fallbackTimer?.cancel();
     _animController.dispose();
@@ -137,11 +146,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Listen to authStatus changes after the timer has elapsed
-    ref.listen<AuthState>(authStatusProvider, (previous, next) {
-      _checkAndNavigate();
-    });
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
