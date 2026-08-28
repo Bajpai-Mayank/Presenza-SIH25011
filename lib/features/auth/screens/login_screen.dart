@@ -24,9 +24,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _rememberMe = false;
   String? _errorMessage;
 
+  late ProviderSubscription<AuthState> _authSub;
+
   @override
   void initState() {
     super.initState();
+    // Set up auth listener – runs only while this widget is alive
+    _authSub = ref.listenManual<AuthState>(authStatusProvider, (previous, next) {
+      if (next.status == AuthStatus.authenticated && next.user != null) {
+        _routeForRole(next.user!.role);
+      } else if (next.status == AuthStatus.profileMissing) {
+        context.go('/no-profile');
+      } else if (next.status == AuthStatus.error && next.errorMessage != null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = next.errorMessage;
+        });
+      }
+    });
     _loadRememberMe();
   }
 
@@ -47,6 +62,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    // Cancel auth listener to avoid memory leaks
+    _authSub.close();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -88,12 +105,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         await prefs.setBool('remember_me_enabled', false);
       }
       
-      // If already authenticated, route immediately
-      final authState = ref.read(authStatusProvider);
-      if (authState.status == AuthStatus.authenticated && authState.user != null) {
-        if (mounted) _routeForRole(authState.user!.role);
-        return;
-      }
+      // No immediate navigation here – the auth listener will handle routing safely.
+
     }
 
     if (mounted) {

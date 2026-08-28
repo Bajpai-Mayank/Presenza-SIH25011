@@ -1,21 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/shared/widgets/animated_bottom_navbar.dart';
 
 /// Navigation item definition for responsive shells.
 class ShellNavigationItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
+  final double? iconSize;
 
   const ShellNavigationItem({
     required this.icon,
     required this.activeIcon,
     required this.label,
+    this.iconSize,
   });
 }
 
 /// A responsive shell widget that automatically displays:
-/// - Bottom Navigation Bar on Mobile (< 768px)
+/// - Animated Bottom Navigation Bar on Mobile (< 768px)
 /// - Navigation Rail / Sidebar on Tablet & Web Desktop (>= 768px)
 class ResponsiveShell extends StatelessWidget {
   final int currentIndex;
@@ -93,31 +96,28 @@ class ResponsiveShell extends StatelessWidget {
       );
     }
 
+    // ── Mobile: Use Animated Bottom Nav Bar ────────────────────────
     return Scaffold(
       appBar: appBar,
-      body: body,
+      // Use extendBody so the animated navbar can overlap
+      extendBody: true,
+      body: Padding(
+        // Add bottom padding so content doesn't hide behind the navbar
+        padding: const EdgeInsets.only(bottom: 0),
+        child: body,
+      ),
       floatingActionButton: floatingActionButton,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(
-            top: BorderSide(
-              color: isDark ? AppColors.cardBorderDark : AppColors.cardBorderLight,
-              width: 1,
-            ),
-          ),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: currentIndex,
-          onTap: onIndexChanged,
-          type: BottomNavigationBarType.fixed,
-          items: items.map((item) {
-            return BottomNavigationBarItem(
-              icon: Icon(item.icon),
-              activeIcon: Icon(item.activeIcon),
-              label: item.label,
-            );
-          }).toList(),
-        ),
+      bottomNavigationBar: AnimatedBottomNavBar(
+        currentIndex: currentIndex,
+        onTap: onIndexChanged,
+        items: items.map((item) {
+          return AnimatedNavItem(
+            icon: item.icon,
+            activeIcon: item.activeIcon,
+            label: item.label,
+            iconSize: item.iconSize,
+          );
+        }).toList(),
       ),
     );
   }

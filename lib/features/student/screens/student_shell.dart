@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/features/student/tabs/student_home_tab.dart';
 import 'package:presenza/features/student/tabs/student_attendance_tab.dart';
+import 'package:presenza/features/student/screens/qr_scanner_screen.dart';
 import 'package:presenza/features/student/tabs/student_activities_tab.dart';
-import 'package:presenza/features/student/tabs/student_insights_tab.dart';
+
 import 'package:presenza/features/student/tabs/student_profile_tab.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
@@ -22,9 +23,9 @@ class _StudentShellState extends ConsumerState<StudentShell> {
   final List<String> _titles = [
     'Student Portal',
     'Subject Attendance',
+    'QR Scanner',
     'Campus Activities',
-    'Academic Insights',
-    'Student Profile',
+    'Profile',
   ];
 
   void _showNotifications(BuildContext context) {
@@ -133,11 +134,11 @@ class _StudentShellState extends ConsumerState<StudentShell> {
     final pages = [
       StudentHomeTab(
         onNavigateToAttendance: () => setState(() => _currentIndex = 1),
-        onNavigateToActivities: () => setState(() => _currentIndex = 2),
+        onNavigateToActivities: () => setState(() => _currentIndex = 3),
       ),
       const StudentAttendanceTab(),
+      const QrScannerScreen(),
       const StudentActivitiesTab(),
-      const StudentInsightsTab(),
       const StudentProfileTab(),
     ];
 
@@ -153,14 +154,15 @@ class _StudentShellState extends ConsumerState<StudentShell> {
         label: 'Attendance',
       ),
       ShellNavigationItem(
+        icon: Icons.qr_code_scanner_outlined,
+        activeIcon: Icons.qr_code_scanner_rounded,
+        label: 'Scan QR',
+        iconSize: 26,
+      ),
+      ShellNavigationItem(
         icon: Icons.campaign_outlined,
         activeIcon: Icons.campaign_rounded,
         label: 'Activities',
-      ),
-      ShellNavigationItem(
-        icon: Icons.insights_outlined,
-        activeIcon: Icons.insights_rounded,
-        label: 'Insights',
       ),
       ShellNavigationItem(
         icon: Icons.person_outline_rounded,

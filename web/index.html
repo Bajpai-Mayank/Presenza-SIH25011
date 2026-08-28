@@ -113,15 +113,23 @@
     <div class="spinner"></div>
   </div>
   <script>
-    window.addEventListener('flutter-first-frame', function () {
+    function removeLoader() {
       var loader = document.getElementById('loading-container');
       if (loader) {
         loader.style.opacity = '0';
         setTimeout(function () {
-          loader.remove();
+          if (loader && loader.parentNode) {
+            loader.parentNode.removeChild(loader);
+          }
         }, 400);
       }
+    }
+    window.addEventListener('flutter-first-frame', removeLoader);
+    window.addEventListener('load', function() {
+      setTimeout(removeLoader, 1500);
     });
+    // Absolute fallback: ensure loader is removed under all circumstances
+    setTimeout(removeLoader, 2500);
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
