@@ -31,6 +31,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
   double _zoomScale = 0.0; // 0.0 = 1x (min), 1.0 = max zoom
   bool _isTorchOn = false;
   bool _isZoomSupported = true;
+  int _zoomFailCount = 0;
 
   late AnimationController _scanAnimController;
   late Animation<double> _scanAnimation;
@@ -68,11 +69,15 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
 
   Future<void> _setZoom(double value) async {
     final clamped = value.clamp(0.0, 1.0);
+    if ((_zoomScale - clamped).abs() < 0.001) return;
     setState(() => _zoomScale = clamped);
     try {
       await _cameraController?.setZoomScale(clamped);
-    } catch (_) {
-      if (mounted) {
+    } catch (e) {
+      debugPrint('Zoom error: $e');
+      // Don't disable zoom on first error — only disable after 3 consecutive failures
+      _zoomFailCount++;
+      if (_zoomFailCount >= 3 && mounted) {
         setState(() => _isZoomSupported = false);
       }
     }
@@ -249,30 +254,50 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
 
     return SecurityOverlay(
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Scan Attendance QR'),
-          actions: [
-            IconButton(
-              icon: Icon(
-                _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
-                color: _isTorchOn ? Colors.amber : null,
-              ),
-              tooltip: _isTorchOn ? 'Turn Flash Off' : 'Turn Flash On',
-              onPressed: _toggleTorch,
-            ),
-            if (!_scanComplete && !_isProcessing)
-              IconButton(
-                icon: const Icon(Icons.keyboard_outlined),
-                tooltip: 'Enter code manually',
-                onPressed: _showManualEntryDialog,
-              ),
-          ],
-        ),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
             child: Column(
               children: [
+                // ── Inline Toolbar (replaces AppBar) ────────────────────────
+                if (!_scanComplete && !_isProcessing)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Scan Attendance QR',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                _isTorchOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                                color: _isTorchOn ? Colors.amber : (isDark ? Colors.white70 : Colors.black54),
+                                size: 22,
+                              ),
+                              tooltip: _isTorchOn ? 'Turn Flash Off' : 'Turn Flash On',
+                              onPressed: _toggleTorch,
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.keyboard_outlined,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                size: 22,
+                              ),
+                              tooltip: 'Enter code manually',
+                              onPressed: _showManualEntryDialog,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
                 // ── Scanner Card with Viewfinder ───────────────────────────
                 AppCard(
                   padding: const EdgeInsets.all(16),
@@ -367,8 +392,18 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.arrow_back_rounded),
-                          onPressed: () => Navigator.pop(context),
-                          label: Text(_isSuccess ? 'Return to Home' : 'Cancel'),
+                          onPressed: () {
+                            // Reset scanner state for re-use in tab
+                            setState(() {
+                              _statusMessage = 'Scan the faculty QR code';
+                              _detailMessage = 'Align the QR code within the highlighted viewfinder. Use zoom if scanning from a distance.';
+                              _isProcessing = false;
+                              _scanComplete = false;
+                              _isSuccess = false;
+                            });
+                            _cameraController?.start();
+                          },
+                          label: Text(_isSuccess ? 'Scan Another' : 'Reset'),
                         ),
                       ),
                     ],
@@ -391,24 +426,25 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
 
   Widget _buildZoomControlSection(bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
+          // ── Header + Buttons Row ─────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.zoom_in_rounded, size: 16, color: AppColors.primary),
+                  const Icon(Icons.zoom_in_rounded, size: 18, color: AppColors.primary),
                   const SizedBox(width: 6),
                   Text(
                     'Zoom: ${_formatZoomDisplay(_zoomScale)}',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -416,47 +452,69 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
               ),
               Row(
                 children: [
-                  // Step Down Button
-                  InkWell(
-                    onTap: () => _setZoom(_zoomScale - 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white12 : Colors.black12,
-                        borderRadius: BorderRadius.circular(8),
+                  // Step Down Button — larger hit target
+                  Material(
+                    color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: () => _setZoom(_zoomScale - 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      child: const SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Icon(Icons.remove_rounded, size: 18),
                       ),
-                      child: const Icon(Icons.remove, size: 14),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Step Up Button
-                  InkWell(
-                    onTap: () => _setZoom(_zoomScale + 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white12 : Colors.black12,
-                        borderRadius: BorderRadius.circular(8),
+                  const SizedBox(width: 10),
+                  // Step Up Button — larger hit target
+                  Material(
+                    color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: () => _setZoom(_zoomScale + 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      child: const SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Icon(Icons.add_rounded, size: 18),
                       ),
-                      child: const Icon(Icons.add, size: 14),
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
 
-          // Zoom Quick Chips
+          // ── Continuous Slider ────────────────────────────────────
+          SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
+              activeTrackColor: AppColors.primary,
+              inactiveTrackColor: isDark ? Colors.white12 : Colors.black12,
+              thumbColor: AppColors.primary,
+              overlayColor: AppColors.primary.withValues(alpha: 0.15),
+            ),
+            child: Slider(
+              value: _zoomScale,
+              min: 0.0,
+              max: 1.0,
+              onChanged: (v) => _setZoom(v),
+            ),
+          ),
+          const SizedBox(height: 4),
+
+          // ── Zoom Quick Chips ────────────────────────────────────
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildZoomChip('1.0x', 0.0),
+              _buildZoomChip('1x', 0.0),
               _buildZoomChip('1.5x', 0.25),
-              _buildZoomChip('2.0x', 0.5),
-              _buildZoomChip('3.0x', 1.0),
+              _buildZoomChip('2x', 0.5),
+              _buildZoomChip('3x', 1.0),
             ],
           ),
         ],
@@ -466,24 +524,29 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
 
   Widget _buildZoomChip(String label, double scale) {
     final isSelected = (_zoomScale - scale).abs() < 0.12;
-    return InkWell(
-      onTap: () => _setZoom(scale),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.slate300,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _setZoom(scale),
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.slate300,
+              width: 1.5,
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? Colors.white : null,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? Colors.white : null,
+            ),
           ),
         ),
       ),
