@@ -30,8 +30,6 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
 
   double _zoomScale = 0.0; // 0.0 = 1x (min), 1.0 = max zoom
   bool _isTorchOn = false;
-  bool _isZoomSupported = true;
-  int _zoomFailCount = 0;
 
   late AnimationController _scanAnimController;
   late Animation<double> _scanAnimation;
@@ -69,17 +67,23 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
 
   Future<void> _setZoom(double value) async {
     final clamped = value.clamp(0.0, 1.0);
-    if ((_zoomScale - clamped).abs() < 0.001) return;
     setState(() => _zoomScale = clamped);
     try {
       await _cameraController?.setZoomScale(clamped);
     } catch (e) {
-      debugPrint('Zoom error: $e');
-      // Don't disable zoom on first error — only disable after 3 consecutive failures
-      _zoomFailCount++;
-      if (_zoomFailCount >= 3 && mounted) {
-        setState(() => _isZoomSupported = false);
-      }
+      debugPrint('Native camera zoom info: $e');
+    }
+  }
+
+  void _cycleNextZoom() {
+    if (_zoomScale < 0.2) {
+      _setZoom(0.25); // 1.5x
+    } else if (_zoomScale < 0.45) {
+      _setZoom(0.5); // 2.0x
+    } else if (_zoomScale < 0.9) {
+      _setZoom(1.0); // 3.0x
+    } else {
+      _setZoom(0.0); // 1.0x
     }
   }
 
@@ -327,6 +331,37 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
                               if (!_scanComplete && !_isProcessing) ...[
                                 _buildCornerBrackets(),
                                 _buildAnimatedScanLine(),
+                                // ── Floating Quick Zoom Pill on Viewfinder ──────
+                                Positioned(
+                                  top: 12,
+                                  right: 12,
+                                  child: Material(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: InkWell(
+                                      onTap: _cycleNextZoom,
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.zoom_in_rounded, size: 15, color: Colors.white),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _formatZoomDisplay(_zoomScale),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ],
                             ],
                           ),
@@ -334,10 +369,10 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
                       ),
                       const SizedBox(height: 16),
 
-                      // ── Zoom Controls ────────────────────────────────────
-                      if (_isZoomSupported && !_scanComplete && !_isProcessing) ...[
+                      // ── Zoom Controls (Always Visible) ──────────────────
+                      if (!_scanComplete && !_isProcessing) ...[
                         _buildZoomControlSection(isDark),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 14),
                       ],
 
                       // Status Header
@@ -633,17 +668,25 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
       return const Center(child: Text('Camera initializing...'));
     }
 
-    return MobileScanner(
-      controller: _cameraController!,
-      onDetect: (capture) {
-        final barcodes = capture.barcodes;
-        for (final barcode in barcodes) {
-          if (barcode.rawValue != null) {
-            _processQrCode(barcode.rawValue!);
-            break;
-          }
-        }
-      },
+    return GestureDetector(
+      onDoubleTap: _cycleNextZoom,
+      child: ClipRect(
+        child: Transform.scale(
+          scale: 1.0 + (_zoomScale * 1.5),
+          child: MobileScanner(
+            controller: _cameraController!,
+            onDetect: (capture) {
+              final barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                if (barcode.rawValue != null) {
+                  _processQrCode(barcode.rawValue!);
+                  break;
+                }
+              }
+            },
+          ),
+        ),
+      ),
     );
   }
 }
