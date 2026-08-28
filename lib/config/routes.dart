@@ -8,6 +8,7 @@ import 'package:presenza/features/auth/screens/login_screen.dart';
 import 'package:presenza/features/auth/screens/register_screen.dart';
 import 'package:presenza/features/auth/screens/forgot_password_screen.dart';
 import 'package:presenza/features/auth/screens/no_profile_screen.dart';
+import 'package:presenza/features/splash/screens/splash_screen.dart';
 import 'package:presenza/shared/screens/help_support_screen.dart';
 
 // Shell & Feature imports
@@ -23,16 +24,21 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: '/login',
+    initialLocation: '/splash',
     redirect: (context, state) {
       final currentLoc = state.matchedLocation;
+      final isSplashRoute = currentLoc == '/splash';
       final isAuthRoute = currentLoc == '/login' ||
           currentLoc == '/forgot-password' ||
           currentLoc == '/register';
       final isNoProfileRoute = currentLoc == '/no-profile';
 
-      // While auth is in progress (initializing, authenticating, fetchingProfile), stay where we are.
-      // If we are navigating to an internal route, let it go to login for safety.
+      // While on splash screen, let the branded animation play without redirect interference
+      if (isSplashRoute) {
+        return null;
+      }
+
+      // While auth is in progress (initializing, authenticating, fetchingProfile), stay on login/auth routes
       if (authStatus.status == AuthStatus.initializing || 
           authStatus.status == AuthStatus.authenticating || 
           authStatus.status == AuthStatus.fetchingProfile) {
@@ -82,6 +88,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),

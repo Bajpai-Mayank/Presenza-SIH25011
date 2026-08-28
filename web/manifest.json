@@ -1,11 +1,11 @@
 {
-    "name": "presenza",
-    "short_name": "presenza",
+    "name": "Presenza Attendance",
+    "short_name": "Presenza",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0B1120",
+    "theme_color": "#4F46E5",
+    "description": "Presenza - Smart Attendance & Academic Management",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

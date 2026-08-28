@@ -13,6 +13,7 @@ import 'package:presenza/data/models/auth_state.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/data/services/auth_service.dart';
+import 'package:presenza/core/constants/academic_defaults.dart';
 import 'package:uuid/uuid.dart';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -578,6 +579,16 @@ final leaderboardProvider = Provider<List<LeaderboardEntryModel>>((ref) {
 final coursesProvider = StreamProvider<List<CourseModel>>((ref) {
   final firestoreService = ref.watch(firestoreServiceProvider);
   return firestoreService.streamCourses();
+});
+
+/// Combined provider that merges standard academic catalogue defaults with live Firestore courses.
+final allCoursesCatalogProvider = Provider<List<CourseModel>>((ref) {
+  final firestoreCourses = ref.watch(coursesProvider).valueOrNull ?? [];
+  final Map<String, CourseModel> courseMap = {
+    for (final c in AcademicDefaults.defaultCourses) c.id: c,
+    for (final c in firestoreCourses) c.id: c,
+  };
+  return courseMap.values.toList();
 });
 
 final subjectsProvider = StreamProvider<List<SubjectModel>>((ref) {

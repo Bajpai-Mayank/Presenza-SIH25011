@@ -52,4 +52,5 @@ local.properties
 *.keystore
 key.properties
 GoogleService-Info.plist
+_flutter/
 

@@ -4,12 +4,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/config/theme/app_theme.dart';
+import 'package:presenza/core/constants/academic_defaults.dart';
 import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
+import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/data/models/user_model.dart';
-import 'package:presenza/core/services/security_service.dart';
+import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/features/auth/screens/register_screen.dart';
+import 'package:presenza/features/teacher/tabs/teacher_attendance_tab.dart';
+import 'package:presenza/providers/app_providers.dart';
+
+class MockFirestoreService extends Fake implements FirestoreService {
+  @override
+  Stream<List<AttendanceSessionModel>> streamSessionHistory(String teacherUid) {
+    return Stream.value([]);
+  }
+
+  @override
+  Stream<List<AttendanceRecordModel>> streamAttendanceRecordsForSession(String sessionId) {
+    return Stream.value([]);
+  }
+
+  @override
+  Future<TeacherModel?> getTeacherProfile(String uid) async {
+    return null;
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -134,6 +155,37 @@ void main() {
         updatedAt: DateTime.now(),
       );
       expect(user2.initials, equals('A'));
+    });
+  });
+
+  group('AcademicDefaults Tests', () {
+    test('Academic catalogue has 30 degree programs and valid categories', () {
+      expect(AcademicDefaults.defaultCourses.length, greaterThanOrEqualTo(25));
+      final cse = AcademicDefaults.findCourseById('course-btech-cse');
+      expect(cse, isNotNull);
+      expect(cse!.name, contains('Computer Science'));
+
+      final bbaLlb = AcademicDefaults.findCourseById('course-bba-llb');
+      expect(bbaLlb, isNotNull);
+      expect(AcademicDefaults.matchesCategory(bbaLlb!, 'Law'), isTrue);
+
+      final mba = AcademicDefaults.findCourseById('course-mba');
+      expect(mba, isNotNull);
+      expect(AcademicDefaults.matchesCategory(mba!, 'Management'), isTrue);
+    });
+
+    test('Deterministic batch generation and synthetic batch helper', () {
+      final batchId = AcademicDefaults.formatBatchId('course-btech-cse', 2024, 'A');
+      expect(batchId, equals('batch_course-btech-cse_2024_a'));
+
+      final synthetic = AcademicDefaults.createSyntheticBatch(
+        courseId: 'course-bca',
+        year: 2025,
+        section: 'B',
+      );
+      expect(synthetic.id, equals('batch_course-bca_2025_b'));
+      expect(synthetic.section, equals('B'));
+      expect(synthetic.year, equals(2025));
     });
   });
 
@@ -322,10 +374,83 @@ void main() {
       await tester.pumpAndSettle();
     });
   });
+
+  group('TeacherAttendanceTab Responsive Tests', () {
+    testWidgets('TeacherAttendanceTab renders Course, Year, Section, Room, Expiry on narrow viewport', (tester) async {
+      // Set viewport to a narrow phone: 360 x 800
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockTeacher = TeacherModel(
+        user: UserModel(
+          id: 'teacher-uid-1',
+          email: 'teacher@presenza.edu',
+          name: 'Prof. Alan Turing',
+          role: UserRole.teacher,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+        employeeId: 'EMP001',
+        departmentId: 'dept-cse',
+        subjectIds: ['sub-cs401'],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firestoreServiceProvider.overrideWithValue(MockFirestoreService()),
+            teacherProfileProvider.overrideWith((ref) => TeacherProfileNotifier(ref, mockTeacher.user)..state = mockTeacher),
+            batchesProvider.overrideWith((ref) => Stream.value([])),
+            teacherSubjectsProvider.overrideWith((ref) => [
+              const SubjectModel(
+                id: 'sub-cs401',
+                name: 'Data Structures & Algorithms',
+                code: 'CS401',
+                courseId: 'course-btech-cse',
+                semester: 4,
+                credits: 4,
+                teacherId: 'teacher-uid-1',
+              ),
+            ]),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: TeacherAttendanceTab(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify header
+      expect(find.text('Start Class Attendance'), findsOneWidget);
+
+      // Verify Course / Degree Program section
+      expect(find.text('Course / Degree Program *'), findsOneWidget);
+
+      // Verify Admission Year and Section
+      expect(find.text('Admission / Batch Year *'), findsOneWidget);
+      expect(find.text('Section *'), findsOneWidget);
+
+      // Verify Target Batch Summary badge
+      expect(find.textContaining('Target:'), findsOneWidget);
+
+      // Verify Subject section & Room field
+      expect(find.text('Subject *'), findsOneWidget);
+      expect(find.text('Room / Hall'), findsOneWidget);
+
+      // Verify QR Code Expiration Time & Chips
+      expect(find.text('QR Code Expiration Time'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, '30s'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, '10 min'), findsOneWidget);
+      expect(find.widgetWithText(ChoiceChip, 'Custom Time'), findsOneWidget);
+
+      // Verify GPS Switch
+      expect(find.text('Require Geolocation Verification (GPS)'), findsOneWidget);
+
+      // Verify Generate Button
+      expect(find.text('Generate Session QR Code'), findsOneWidget);
+    });
+  });
 }
-
-
-
-
-
-

@@ -1,11 +1,22 @@
 {
   "name": "presenza",
   "version": "1.0.0",
-  "description": "Presenza - Flutter Web Application",
+  "description": "Presenza - Smart Attendance & Academic Management",
   "scripts": {
-    "build": "bash build.sh"
+    "build": "bash build.sh",
+    "build:web": "flutter build web --release --no-tree-shake-icons",
+    "build:apk": "flutter build apk --release --no-tree-shake-icons",
+    "build:apk:debug": "flutter build apk --debug",
+    "test": "flutter test",
+    "analyze": "flutter analyze"
   },
-  "keywords": ["flutter", "presenza", "web"],
+  "keywords": [
+    "flutter",
+    "presenza",
+    "attendance",
+    "web",
+    "android"
+  ],
   "author": "Bajpai-Mayank",
   "license": "MIT"
 }

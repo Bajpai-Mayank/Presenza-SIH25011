@@ -9,8 +9,10 @@ git config --global --add safe.directory "*" || true
 # Check if flutter is already installed, if not, download it
 if ! command -v flutter &> /dev/null; then
   echo "Downloading Flutter SDK..."
-  git clone https://github.com/flutter/flutter.git --depth 1 -b stable _flutter
-  export PATH="`pwd`/_flutter/bin:$PATH"
+  if [ ! -d "_flutter" ]; then
+    git clone https://github.com/flutter/flutter.git --depth 1 -b stable _flutter
+  fi
+  export PATH="$PWD/_flutter/bin:$PATH"
 fi
 
 echo "Configuring Flutter..."
@@ -26,4 +28,4 @@ flutter pub get
 echo "Building Flutter Web Release..."
 flutter build web --release --no-tree-shake-icons
 
-echo "=== Build completed successfully! Output in build/web ==="
+echo "=== Build completed successfully! Output directory: build/web ==="
