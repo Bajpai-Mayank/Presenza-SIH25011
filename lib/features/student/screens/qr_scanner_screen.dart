@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -68,10 +69,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
   Future<void> _setZoom(double value) async {
     final clamped = value.clamp(0.0, 1.0);
     setState(() => _zoomScale = clamped);
-    try {
-      await _cameraController?.setZoomScale(clamped);
-    } catch (e) {
-      debugPrint('Native camera zoom info: $e');
+    
+    // Only attempt hardware camera zoom on native Android / iOS devices
+    if (!kIsWeb && _cameraController != null) {
+      try {
+        await _cameraController!.setZoomScale(clamped);
+      } catch (e) {
+        debugPrint('Optical zoom not supported on this lens, digital zoom active: $e');
+      }
     }
   }
 
