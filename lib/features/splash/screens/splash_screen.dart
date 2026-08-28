@@ -21,7 +21,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late Animation<double> _fadeAnim;
   late Animation<double> _slideAnim;
   bool _minDurationElapsed = false;
+  bool _hasNavigated = false;
   Timer? _timer;
+  Timer? _fallbackTimer;
 
   @override
   void initState() {
@@ -55,11 +57,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _animController.forward();
 
-    // Ensure splash displays for a comfortable branded duration (~1.2s)
-    _timer = Timer(const Duration(milliseconds: 1200), () {
+    // 1. Min branded duration (~1.0s)
+    _timer = Timer(const Duration(milliseconds: 1000), () {
       if (mounted) {
         setState(() => _minDurationElapsed = true);
         _checkAndNavigate();
+      }
+    });
+
+    // 2. Safety fallback timeout (~2.2s) - guarantees app never hangs on splash
+    _fallbackTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted && !_hasNavigated) {
+        _forceNavigation();
       }
     });
   }
@@ -67,21 +76,37 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   void dispose() {
     _timer?.cancel();
+    _fallbackTimer?.cancel();
     _animController.dispose();
     super.dispose();
   }
 
+  void _forceNavigation() {
+    if (_hasNavigated || !mounted) return;
+    _hasNavigated = true;
+
+    final authStatus = ref.read(authStatusProvider);
+    if (authStatus.status == AuthStatus.authenticated && authStatus.user != null) {
+      _routeForRole(authStatus.user!.role);
+    } else if (authStatus.status == AuthStatus.profileMissing) {
+      context.go('/no-profile');
+    } else {
+      context.go('/login');
+    }
+  }
+
   void _checkAndNavigate() {
-    if (!_minDurationElapsed || !mounted) return;
+    if (_hasNavigated || !_minDurationElapsed || !mounted) return;
 
     final authStatus = ref.read(authStatusProvider);
 
-    // If still initializing or fetching profile, wait briefly
     if (authStatus.status == AuthStatus.initializing ||
         authStatus.status == AuthStatus.authenticating ||
         authStatus.status == AuthStatus.fetchingProfile) {
       return;
     }
+
+    _hasNavigated = true;
 
     if (authStatus.status == AuthStatus.profileMissing) {
       context.go('/no-profile');
@@ -89,32 +114,32 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     }
 
     if (authStatus.status == AuthStatus.authenticated && authStatus.user != null) {
-      final user = authStatus.user!;
-      switch (user.role) {
-        case UserRole.student:
-          context.go('/student');
-          break;
-        case UserRole.teacher:
-          context.go('/teacher');
-          break;
-        case UserRole.admin:
-          context.go('/admin');
-          break;
-      }
+      _routeForRole(authStatus.user!.role);
       return;
     }
 
-    // Default to login for unauthenticated or error states
     context.go('/login');
+  }
+
+  void _routeForRole(UserRole role) {
+    switch (role) {
+      case UserRole.student:
+        context.go('/student');
+        break;
+      case UserRole.teacher:
+        context.go('/teacher');
+        break;
+      case UserRole.admin:
+        context.go('/admin');
+        break;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     // Listen to authStatus changes after the timer has elapsed
     ref.listen<AuthState>(authStatusProvider, (previous, next) {
-      if (_minDurationElapsed) {
-        _checkAndNavigate();
-      }
+      _checkAndNavigate();
     });
 
     final isDark = Theme.of(context).brightness == Brightness.dark;

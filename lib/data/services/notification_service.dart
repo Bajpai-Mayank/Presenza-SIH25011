@@ -22,6 +22,10 @@ class NotificationService {
 
   Future<void> init() async {
     if (_isInitialized) return;
+    if (kIsWeb) {
+      _isInitialized = true;
+      return;
+    }
 
     try {
       // 1. Request Permissions

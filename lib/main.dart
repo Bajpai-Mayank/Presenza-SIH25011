@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,9 +23,11 @@ void main() async {
     );
     debugPrint('Firebase initialized successfully.');
     
-    // Initialize Notifications
-    await NotificationService().init();
-    debugPrint('Notifications initialized successfully.');
+    // Initialize Notifications only on native platforms (not on Web)
+    if (!kIsWeb) {
+      await NotificationService().init();
+      debugPrint('Notifications initialized successfully.');
+    }
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
     runApp(
