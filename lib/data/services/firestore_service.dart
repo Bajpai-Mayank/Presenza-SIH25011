@@ -269,16 +269,21 @@ class FirestoreService {
     });
   }
 
-  /// Create or update a campus activity post, automatically broadcasting notifications for official notices.
+  /// Create or update a campus activity post, automatically broadcasting notifications.
   Future<void> saveActivityPost(ActivityPostModel post) async {
     await _db.collection('circulars').doc(post.id).set(post.toJson());
-    if (post.isOfficial && post.status == ActivityStatus.approved) {
+    if (post.status == ActivityStatus.approved) {
       // Broadcast in-app notifications asynchronously
       broadcastNoticeNotification(post);
     }
   }
 
-  /// Approve a pending student post and broadcast notification.
+  /// Delete a campus activity or notice post.
+  Future<void> deleteActivityPost(String postId) async {
+    await _db.collection('circulars').doc(postId).delete();
+  }
+
+  /// Approve a pending post and broadcast notification.
   Future<void> approveActivityPost(String postId) async {
     final now = DateTime.now();
     await _db.collection('circulars').doc(postId).update({
@@ -339,7 +344,9 @@ class FirestoreService {
           final notif = NotificationModel(
             id: notifId,
             userId: uid,
-            title: post.isOfficial ? 'Notice: ${post.title}' : 'Activity: ${post.title}',
+            title: post.category == ActivityCategory.notice || post.isOfficial
+                ? '📢 Notice: ${post.title}'
+                : '🎉 Campus Activity: ${post.title}',
             body: post.description.length > 120
                 ? '${post.description.substring(0, 120)}...'
                 : post.description,

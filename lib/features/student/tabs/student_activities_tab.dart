@@ -25,7 +25,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
@@ -38,13 +38,13 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
     super.dispose();
   }
 
-  void _showCreatePostDialog(BuildContext context) {
+  void _showCreatePostDialog(BuildContext context, {ActivityCategory initialCategory = ActivityCategory.notice}) {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     final locationCtrl = TextEditingController();
     final organizerCtrl = TextEditingController();
-    ActivityCategory selectedCategory = ActivityCategory.workshop;
-    DateTime? selectedDate = DateTime.now().add(const Duration(days: 3));
+    ActivityCategory selectedCategory = initialCategory;
+    DateTime? selectedDate = DateTime.now().add(const Duration(days: 2));
     final formKey = GlobalKey<FormState>();
     bool isSubmitting = false;
 
@@ -75,11 +75,24 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Create Notice / Campus Activity',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withAlpha(25),
+                              borderRadius: BorderRadius.circular(10),
                             ),
+                            child: const Icon(Icons.campaign_rounded, color: AppColors.primary, size: 22),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Send Notice / Activity',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ],
                       ),
                       IconButton(
                         icon: const Icon(Icons.close_rounded),
@@ -87,52 +100,38 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
-                    selectedCategory == ActivityCategory.notice
-                        ? 'Official notices require faculty/admin approval. Other activities are published immediately.'
-                        : 'Share events, workshops, clubs, and study groups instantly with the campus!',
+                    'Post announcements, event alerts, club updates, or notices instantly to the entire campus!',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 12),
 
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: selectedCategory == ActivityCategory.notice
-                          ? AppColors.warning.withAlpha(20)
-                          : AppColors.success.withAlpha(20),
-                      borderRadius: BorderRadius.circular(10),
+                      color: AppColors.success.withAlpha(20),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: selectedCategory == ActivityCategory.notice
-                            ? AppColors.warning.withAlpha(80)
-                            : AppColors.success.withAlpha(80),
+                        color: AppColors.success.withAlpha(80),
                       ),
                     ),
-                    child: Row(
+                    child: const Row(
                       children: [
                         Icon(
-                          selectedCategory == ActivityCategory.notice
-                              ? Icons.verified_user_outlined
-                              : Icons.bolt_rounded,
-                          size: 18,
-                          color: selectedCategory == ActivityCategory.notice
-                              ? AppColors.warning
-                              : AppColors.success,
+                          Icons.bolt_rounded,
+                          size: 20,
+                          color: AppColors.success,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            selectedCategory == ActivityCategory.notice
-                                ? 'Notice requires faculty review before broadcast'
-                                : 'Instant Post: Live immediately for all students & teachers',
+                            'Instant Broadcast: Live immediately for all students, teachers, and admins.',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: selectedCategory == ActivityCategory.notice
-                                  ? AppColors.warning
-                                  : AppColors.success,
+                              color: AppColors.success,
                             ),
                           ),
                         ),
@@ -141,72 +140,90 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   ),
                   const SizedBox(height: 16),
 
+                  // Category Selection Chips
+                  Text(
+                    'Select Category',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: ActivityCategory.values.map((cat) {
+                        final isSelected = selectedCategory == cat;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            avatar: Icon(
+                              cat.icon,
+                              size: 16,
+                              color: isSelected ? Colors.white : cat.color,
+                            ),
+                            label: Text(
+                              cat == ActivityCategory.notice ? '📢 Notice' : cat.label,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: isSelected ? Colors.white : null,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: cat.color,
+                            onSelected: (val) {
+                              if (val) setModalState(() => selectedCategory = cat);
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
                   AppTextField(
                     controller: titleCtrl,
-                    labelText: 'Activity / Notice Title',
-                    hintText: 'e.g. AI & Robotics Hackathon 2025',
-                    prefixIcon: Icons.title_rounded,
+                    labelText: selectedCategory == ActivityCategory.notice
+                        ? 'Notice Title'
+                        : 'Activity / Event Title',
+                    hintText: selectedCategory == ActivityCategory.notice
+                        ? 'e.g. Campus Blood Donation Drive or Hackathon Notice'
+                        : 'e.g. AI & Robotics Workshop 2025',
+                    prefixIcon: selectedCategory == ActivityCategory.notice
+                        ? Icons.campaign_rounded
+                        : Icons.title_rounded,
                     validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
-                  ),
-                  const SizedBox(height: 14),
-
-                  DropdownButtonFormField<ActivityCategory>(
-                    initialValue: selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      prefixIcon: Icon(Icons.category_outlined, size: 20),
-                    ),
-                    items: ActivityCategory.values.map((cat) {
-                      return DropdownMenuItem(
-                        value: cat,
-                        child: Row(
-                          children: [
-                            Icon(cat.icon, size: 16, color: cat.color),
-                            const SizedBox(width: 8),
-                            Text(cat.label),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) setModalState(() => selectedCategory = val);
-                    },
                   ),
                   const SizedBox(height: 14),
 
                   AppTextField(
                     controller: descCtrl,
                     labelText: 'Description & Details',
-                    hintText: 'Provide event details, schedule, requirements, and registration links...',
+                    hintText: 'Share complete announcement details, schedule, links, or instructions...',
                     prefixIcon: Icons.description_outlined,
-                    maxLines: 3,
+                    maxLines: 4,
                     validator: (v) => v == null || v.trim().isEmpty ? 'Description is required' : null,
                   ),
                   const SizedBox(height: 14),
 
                   AppTextField(
                     controller: locationCtrl,
-                    labelText: 'Location / Venue / Link',
-                    hintText: 'e.g. Auditorium Hall A or Online Meet',
+                    labelText: 'Location / Venue / Online Link (Optional)',
+                    hintText: 'e.g. Auditorium Hall A or Google Meet link',
                     prefixIcon: Icons.place_outlined,
                   ),
                   const SizedBox(height: 14),
 
                   AppTextField(
                     controller: organizerCtrl,
-                    labelText: 'Organizer / Club Name',
-                    hintText: 'e.g. IEEE Student Branch / Coding Club',
+                    labelText: 'Organizer / Club / Department (Optional)',
+                    hintText: 'e.g. Student Council / Coding Club',
                     prefixIcon: Icons.groups_outlined,
                   ),
                   const SizedBox(height: 24),
 
                   AppButton.primary(
-                    label: selectedCategory == ActivityCategory.notice
-                        ? 'Submit Notice for Approval'
-                        : 'Publish Activity Immediately',
-                    icon: selectedCategory == ActivityCategory.notice
-                        ? Icons.send_rounded
-                        : Icons.rocket_launch_rounded,
+                    label: 'Broadcast Notice / Post Now',
+                    icon: Icons.rocket_launch_rounded,
                     isLoading: isSubmitting,
                     onPressed: () async {
                       if (!formKey.currentState!.validate()) return;
@@ -215,9 +232,6 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       final student = ref.read(studentProfileProvider);
                       final firestoreService = ref.read(firestoreServiceProvider);
                       final now = DateTime.now();
-
-                      final isOfficialNotice = selectedCategory == ActivityCategory.notice;
-                      final postStatus = isOfficialNotice ? ActivityStatus.pending : ActivityStatus.approved;
 
                       final post = ActivityPostModel(
                         id: const Uuid().v4(),
@@ -228,7 +242,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                         authorName: student?.user.name ?? 'Student Author',
                         authorRole: 'student',
                         isOfficial: false,
-                        status: postStatus,
+                        status: ActivityStatus.approved,
                         eventDate: selectedDate,
                         location: locationCtrl.text.trim().isNotEmpty ? locationCtrl.text.trim() : null,
                         organizer: organizerCtrl.text.trim().isNotEmpty ? organizerCtrl.text.trim() : null,
@@ -244,12 +258,8 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       if (mounted) {
                         navigator.pop();
                         messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              isOfficialNotice
-                                  ? 'Notice submitted! Faculty will review and approve it shortly.'
-                                  : 'Activity published! It is now live in the campus feed.',
-                            ),
+                          const SnackBar(
+                            content: Text('Notice published and live for the entire campus!'),
                             backgroundColor: AppColors.success,
                           ),
                         );
@@ -423,6 +433,34 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
     );
   }
 
+  void _confirmDeletePost(BuildContext context, String postId) {
+    final messenger = ScaffoldMessenger.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Post?'),
+        content: const Text('Are you sure you want to delete this notice/activity? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(firestoreServiceProvider).deleteActivityPost(postId);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Notice/activity deleted successfully.')),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final activitiesAsync = ref.watch(activitiesStreamProvider);
@@ -454,17 +492,83 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreatePostDialog(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Create Notice / Post'),
+        onPressed: () => _showCreatePostDialog(context, initialCategory: ActivityCategory.notice),
+        icon: const Icon(Icons.campaign_rounded),
+        label: const Text('Send Notice / Post'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
+          // Quick Post Banner
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: InkWell(
+              onTap: () => _showCreatePostDialog(context, initialCategory: ActivityCategory.notice),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? AppColors.cardBorderDark : AppColors.cardBorderLight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: AppColors.primary.withAlpha(25),
+                      child: Text(
+                        student?.user.initials ?? 'S',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Send a notice or share an activity...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.campaign_rounded, size: 14, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'Send Notice',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           // Search & Filters Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
             child: AppTextField(
               controller: _searchController,
               hintText: 'Search campus activities, notices, workshops...',
@@ -481,7 +585,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
           // Categories Horizontal Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Row(
               children: [
                 ChoiceChip(
@@ -495,7 +599,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
                       avatar: Icon(cat.icon, size: 14),
-                      label: Text(cat.label),
+                      label: Text(cat == ActivityCategory.notice ? 'Notices' : cat.label),
                       selected: _selectedCategory == cat,
                       onSelected: (val) {
                         setState(() => _selectedCategory = val ? cat : null);
@@ -515,9 +619,10 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
             labelPadding: const EdgeInsets.symmetric(horizontal: 16),
             tabs: const [
               Tab(text: 'All Feed'),
-              Tab(text: 'Official Circulars'),
-              Tab(text: 'Student Events'),
-              Tab(text: 'Bookmarked'),
+              Tab(text: '📢 Notices'),
+              Tab(text: '🎉 Activities'),
+              Tab(text: '👤 My Posts'),
+              Tab(text: '🔖 Saved'),
             ],
           ),
           const Divider(height: 1),
@@ -529,19 +634,32 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
               children: [
                 _buildActivityList(filteredList, uid, isDark),
                 _buildActivityList(
-                  filteredList.where((a) => a.isOfficial).toList(),
+                  filteredList.where((a) => a.category == ActivityCategory.notice || a.isOfficial).toList(),
                   uid,
                   isDark,
+                  emptyTitle: 'No Notices Found',
+                  emptySubtitle: 'Send the first notice for your batch or campus!',
                 ),
                 _buildActivityList(
-                  filteredList.where((a) => !a.isOfficial).toList(),
+                  filteredList.where((a) => a.category != ActivityCategory.notice && !a.isOfficial).toList(),
                   uid,
                   isDark,
+                  emptyTitle: 'No Activities Found',
+                  emptySubtitle: 'Create workshops, study groups, or club meetups!',
+                ),
+                _buildActivityList(
+                  filteredList.where((a) => a.authorId == uid).toList(),
+                  uid,
+                  isDark,
+                  emptyTitle: 'You Haven\'t Posted Yet',
+                  emptySubtitle: 'Send notices or share campus activities to see them here!',
                 ),
                 _buildActivityList(
                   filteredList.where((a) => a.isBookmarked(uid)).toList(),
                   uid,
                   isDark,
+                  emptyTitle: 'No Saved Posts',
+                  emptySubtitle: 'Bookmark important notices and events for quick reference.',
                 ),
               ],
             ),
@@ -551,12 +669,18 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
     );
   }
 
-  Widget _buildActivityList(List<ActivityPostModel> list, String uid, bool isDark) {
+  Widget _buildActivityList(
+    List<ActivityPostModel> list,
+    String uid,
+    bool isDark, {
+    String emptyTitle = 'No Activities Found',
+    String emptySubtitle = 'No campus announcements match your current filter criteria.',
+  }) {
     if (list.isEmpty) {
-      return const EmptyStateWidget(
+      return EmptyStateWidget(
         icon: Icons.campaign_outlined,
-        title: 'No Activities Found',
-        subtitle: 'No campus announcements match your current filter criteria.',
+        title: emptyTitle,
+        subtitle: emptySubtitle,
       );
     }
 
@@ -569,6 +693,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
         final isInterested = post.isInterested(uid);
         final isBookmarked = post.isBookmarked(uid);
         final userReaction = post.getUserReaction(uid);
+        final isOwner = post.authorId == uid;
 
         return AppCard(
           padding: const EdgeInsets.all(18),
@@ -588,6 +713,16 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       small: true,
                     ),
                   const Spacer(),
+                  if (isOwner)
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 20,
+                        color: AppColors.error,
+                      ),
+                      tooltip: 'Delete Post',
+                      onPressed: () => _confirmDeletePost(context, post.id),
+                    ),
                   IconButton(
                     icon: Icon(
                       isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
