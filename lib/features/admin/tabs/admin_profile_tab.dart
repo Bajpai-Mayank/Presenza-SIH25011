@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/user_role.dart';
+import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 
@@ -14,6 +18,164 @@ class AdminProfileTab extends ConsumerStatefulWidget {
 
 class _AdminProfileTabState extends ConsumerState<AdminProfileTab> {
   bool _isSeeding = false;
+
+  void _showEditProfileDialog(BuildContext context, UserModel user) {
+    final nameCtrl = TextEditingController(text: user.name);
+    final bioCtrl = TextEditingController(text: user.bio ?? '');
+    final phoneCtrl = TextEditingController(text: user.phone ?? '');
+    final formKey = GlobalKey<FormState>();
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (stfCtx, setDialogState) => AlertDialog(
+          title: const Text('Edit Administrator Profile'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppTextField(
+                    controller: nameCtrl,
+                    labelText: 'Full Name',
+                    prefixIcon: Icons.person_outline,
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
+                  ),
+                  const SizedBox(height: 14),
+                  AppTextField(
+                    controller: bioCtrl,
+                    labelText: 'Bio / Title',
+                    hintText: 'e.g. Chief Campus Administrator...',
+                    prefixIcon: Icons.edit_note_outlined,
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 14),
+                  AppTextField(
+                    controller: phoneCtrl,
+                    labelText: 'Phone Number',
+                    hintText: '+91 98765 43210',
+                    prefixIcon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDialogState(() => isSaving = true);
+
+                      try {
+                        final newName = nameCtrl.text.trim();
+                        final newBio = bioCtrl.text.trim();
+                        final newPhone = phoneCtrl.text.trim();
+
+                        await ref.read(firestoreServiceProvider).updateUserProfile(
+                              uid: user.id,
+                              name: newName,
+                              bio: newBio,
+                              phone: newPhone,
+                            );
+
+                        final updatedUser = user.copyWith(
+                          name: newName,
+                          bio: newBio,
+                          phone: newPhone,
+                          updatedAt: DateTime.now(),
+                        );
+
+                        ref.read(authStatusProvider.notifier).updateLocalUser(updatedUser);
+
+                        if (dialogCtx.mounted) {
+                          Navigator.of(dialogCtx).pop();
+                        }
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Administrator profile updated!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (stfCtx.mounted) {
+                          setDialogState(() => isSaving = false);
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to update profile: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Save Changes'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadProfilePicture(BuildContext context, UserModel user) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      
+      // Compress the image
+      final compressedBytes = await FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: 400,
+        minHeight: 400,
+        quality: 70,
+      );
+
+      final base64String = base64Encode(compressedBytes);
+      final dataUri = 'data:image/jpeg;base64,$base64String';
+
+      await ref.read(firestoreServiceProvider).updateUserProfile(
+        uid: user.id,
+        avatarUrl: dataUri,
+      );
+
+      final updatedUser = user.copyWith(
+        avatarUrl: dataUri,
+        updatedAt: DateTime.now(),
+      );
+
+      ref.read(authStatusProvider.notifier).updateLocalUser(updatedUser);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Administrator avatar updated!'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update picture: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
 
   Future<void> _seedDatabase() async {
     setState(() => _isSeeding = true);
@@ -76,7 +238,6 @@ class _AdminProfileTabState extends ConsumerState<AdminProfileTab> {
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final themeMode = ref.watch(themeModeProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -88,21 +249,37 @@ class _AdminProfileTabState extends ConsumerState<AdminProfileTab> {
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                CircleAvatar(
+                UserAvatar(
+                  avatarUrl: user?.avatarUrl,
+                  initials: user?.initials ?? 'AD',
                   radius: 32,
-                  backgroundColor: isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer,
-                  child: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.primary, size: 32),
+                  showEditBadge: user != null,
+                  onTap: user != null ? () => _pickAndUploadProfilePicture(context, user) : null,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        user?.name ?? 'Campus Administrator',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              user?.name ?? 'Campus Administrator',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
+                          ),
+                          if (user != null)
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                              onPressed: () => _showEditProfileDialog(context, user),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(

@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:uuid/uuid.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/user_role.dart';
@@ -141,7 +144,7 @@ class TeacherProfileTab extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (stfCtx, setDialogState) => AlertDialog(
           title: const Text('Edit Faculty Profile'),
           content: Form(
             key: formKey,
@@ -177,7 +180,7 @@ class TeacherProfileTab extends ConsumerWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
+              onPressed: isSaving ? null : () => Navigator.of(dialogCtx).pop(),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -187,24 +190,56 @@ class TeacherProfileTab extends ConsumerWidget {
                       if (!formKey.currentState!.validate()) return;
                       setDialogState(() => isSaving = true);
 
-                      await ref.read(firestoreServiceProvider).updateUserProfile(
-                            uid: user.id,
-                            name: nameCtrl.text.trim(),
-                            bio: bioCtrl.text.trim(),
-                            phone: phoneCtrl.text.trim(),
-                          );
+                      try {
+                        final newName = nameCtrl.text.trim();
+                        final newBio = bioCtrl.text.trim();
+                        final newPhone = phoneCtrl.text.trim();
 
-                      await ref.read(authStatusProvider.notifier).refreshProfile();
-                      await ref.read(teacherProfileProvider.notifier).refresh();
+                        await ref.read(firestoreServiceProvider).updateUserProfile(
+                              uid: user.id,
+                              name: newName,
+                              bio: newBio,
+                              phone: newPhone,
+                            );
 
-                      if (context.mounted) {
-                        Navigator.pop(dialogCtx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Faculty profile updated!'),
-                            backgroundColor: AppColors.success,
-                          ),
+                        final updatedUser = user.copyWith(
+                          name: newName,
+                          bio: newBio,
+                          phone: newPhone,
+                          updatedAt: DateTime.now(),
                         );
+
+                        ref.read(authStatusProvider.notifier).updateLocalUser(updatedUser);
+                        ref.read(teacherProfileProvider.notifier).updateUserData(
+                              name: newName,
+                              bio: newBio,
+                              phone: newPhone,
+                            );
+
+                        if (dialogCtx.mounted) {
+                          Navigator.of(dialogCtx).pop();
+                        }
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Faculty profile updated!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (stfCtx.mounted) {
+                          setDialogState(() => isSaving = false);
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to update profile: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
                       }
                     },
               child: isSaving
@@ -215,6 +250,54 @@ class TeacherProfileTab extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _pickAndUploadProfilePicture(BuildContext context, WidgetRef ref, UserModel user) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+      if (pickedFile == null) return;
+
+      final bytes = await pickedFile.readAsBytes();
+      
+      // Compress the image
+      final compressedBytes = await FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: 400,
+        minHeight: 400,
+        quality: 70,
+      );
+
+      final base64String = base64Encode(compressedBytes);
+      final dataUri = 'data:image/jpeg;base64,$base64String';
+
+      await ref.read(firestoreServiceProvider).updateUserProfile(
+        uid: user.id,
+        avatarUrl: dataUri,
+      );
+
+      final updatedUser = user.copyWith(
+        avatarUrl: dataUri,
+        updatedAt: DateTime.now(),
+      );
+
+      ref.read(authStatusProvider.notifier).updateLocalUser(updatedUser);
+      ref.read(teacherProfileProvider.notifier).updateUserData(
+        avatarUrl: dataUri,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Faculty profile picture updated!'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update picture: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
   }
 
   void _showLogoutDialog(BuildContext context, WidgetRef ref) {
@@ -268,17 +351,12 @@ class TeacherProfileTab extends ConsumerWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
+                    UserAvatar(
+                      avatarUrl: teacher.user.avatarUrl,
+                      initials: teacher.user.initials,
                       radius: 36,
-                      backgroundColor: isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer,
-                      child: Text(
-                        teacher.user.initials,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? AppColors.primaryDark : AppColors.primary,
-                        ),
-                      ),
+                      showEditBadge: true,
+                      onTap: () => _pickAndUploadProfilePicture(context, ref, teacher.user),
                     ),
                     const SizedBox(width: 16),
                     Expanded(

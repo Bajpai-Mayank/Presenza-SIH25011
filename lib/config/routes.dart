@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/data/models/auth_state.dart';
@@ -44,6 +45,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (authStatus.status == AuthStatus.initializing || 
           authStatus.status == AuthStatus.authenticating || 
           authStatus.status == AuthStatus.fetchingProfile) {
+        return null;
+      }
+
+      // If Firebase Auth currentUser is present, stay on current route while profile is finishing
+      if (FirebaseAuth.instance.currentUser != null && authStatus.user == null) {
         return null;
       }
 

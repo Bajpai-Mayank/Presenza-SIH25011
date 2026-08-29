@@ -76,7 +76,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Submit Notice / Campus Activity',
+                        'Create Notice / Campus Activity',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
@@ -89,14 +89,61 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Create and share notices or activities. Student posts are reviewed by faculty before going live.',
+                    selectedCategory == ActivityCategory.notice
+                        ? 'Official notices require faculty/admin approval. Other activities are published immediately.'
+                        : 'Share events, workshops, clubs, and study groups instantly with the campus!',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: selectedCategory == ActivityCategory.notice
+                          ? AppColors.warning.withAlpha(20)
+                          : AppColors.success.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: selectedCategory == ActivityCategory.notice
+                            ? AppColors.warning.withAlpha(80)
+                            : AppColors.success.withAlpha(80),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          selectedCategory == ActivityCategory.notice
+                              ? Icons.verified_user_outlined
+                              : Icons.bolt_rounded,
+                          size: 18,
+                          color: selectedCategory == ActivityCategory.notice
+                              ? AppColors.warning
+                              : AppColors.success,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            selectedCategory == ActivityCategory.notice
+                                ? 'Notice requires faculty review before broadcast'
+                                : 'Instant Post: Live immediately for all students & teachers',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: selectedCategory == ActivityCategory.notice
+                                  ? AppColors.warning
+                                  : AppColors.success,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   AppTextField(
                     controller: titleCtrl,
-                    labelText: 'Activity Title',
+                    labelText: 'Activity / Notice Title',
                     hintText: 'e.g. AI & Robotics Hackathon 2025',
                     prefixIcon: Icons.title_rounded,
                     validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
@@ -139,7 +186,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
 
                   AppTextField(
                     controller: locationCtrl,
-                    labelText: 'Location / Venue',
+                    labelText: 'Location / Venue / Link',
                     hintText: 'e.g. Auditorium Hall A or Online Meet',
                     prefixIcon: Icons.place_outlined,
                   ),
@@ -148,13 +195,18 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   AppTextField(
                     controller: organizerCtrl,
                     labelText: 'Organizer / Club Name',
-                    hintText: 'e.g. IEEE Student Branch',
+                    hintText: 'e.g. IEEE Student Branch / Coding Club',
                     prefixIcon: Icons.groups_outlined,
                   ),
                   const SizedBox(height: 24),
 
                   AppButton.primary(
-                    label: 'Submit for Approval',
+                    label: selectedCategory == ActivityCategory.notice
+                        ? 'Submit Notice for Approval'
+                        : 'Publish Activity Immediately',
+                    icon: selectedCategory == ActivityCategory.notice
+                        ? Icons.send_rounded
+                        : Icons.rocket_launch_rounded,
                     isLoading: isSubmitting,
                     onPressed: () async {
                       if (!formKey.currentState!.validate()) return;
@@ -163,6 +215,9 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       final student = ref.read(studentProfileProvider);
                       final firestoreService = ref.read(firestoreServiceProvider);
                       final now = DateTime.now();
+
+                      final isOfficialNotice = selectedCategory == ActivityCategory.notice;
+                      final postStatus = isOfficialNotice ? ActivityStatus.pending : ActivityStatus.approved;
 
                       final post = ActivityPostModel(
                         id: const Uuid().v4(),
@@ -173,7 +228,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                         authorName: student?.user.name ?? 'Student Author',
                         authorRole: 'student',
                         isOfficial: false,
-                        status: ActivityStatus.pending,
+                        status: postStatus,
                         eventDate: selectedDate,
                         location: locationCtrl.text.trim().isNotEmpty ? locationCtrl.text.trim() : null,
                         organizer: organizerCtrl.text.trim().isNotEmpty ? organizerCtrl.text.trim() : null,
@@ -189,8 +244,12 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       if (mounted) {
                         navigator.pop();
                         messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Activity submitted! It will appear once approved by faculty.'),
+                          SnackBar(
+                            content: Text(
+                              isOfficialNotice
+                                  ? 'Notice submitted! Faculty will review and approve it shortly.'
+                                  : 'Activity published! It is now live in the campus feed.',
+                            ),
                             backgroundColor: AppColors.success,
                           ),
                         );

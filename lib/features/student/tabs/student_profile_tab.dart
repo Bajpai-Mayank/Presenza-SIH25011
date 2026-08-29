@@ -22,7 +22,7 @@ class StudentProfileTab extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (stfCtx, setDialogState) => AlertDialog(
           title: const Text('Edit Profile'),
           content: Form(
             key: formKey,
@@ -58,7 +58,7 @@ class StudentProfileTab extends ConsumerWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogCtx),
+              onPressed: isSaving ? null : () => Navigator.of(dialogCtx).pop(),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -68,24 +68,56 @@ class StudentProfileTab extends ConsumerWidget {
                       if (!formKey.currentState!.validate()) return;
                       setDialogState(() => isSaving = true);
 
-                      await ref.read(firestoreServiceProvider).updateUserProfile(
-                            uid: user.id,
-                            name: nameCtrl.text.trim(),
-                            bio: bioCtrl.text.trim(),
-                            phone: phoneCtrl.text.trim(),
-                          );
+                      try {
+                        final newName = nameCtrl.text.trim();
+                        final newBio = bioCtrl.text.trim();
+                        final newPhone = phoneCtrl.text.trim();
 
-                      await ref.read(authStatusProvider.notifier).refreshProfile();
-                      await ref.read(studentProfileProvider.notifier).refresh();
+                        await ref.read(firestoreServiceProvider).updateUserProfile(
+                              uid: user.id,
+                              name: newName,
+                              bio: newBio,
+                              phone: newPhone,
+                            );
 
-                      if (context.mounted) {
-                        Navigator.pop(dialogCtx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Profile updated successfully!'),
-                            backgroundColor: AppColors.success,
-                          ),
+                        final updatedUser = user.copyWith(
+                          name: newName,
+                          bio: newBio,
+                          phone: newPhone,
+                          updatedAt: DateTime.now(),
                         );
+
+                        ref.read(authStatusProvider.notifier).updateLocalUser(updatedUser);
+                        ref.read(studentProfileProvider.notifier).updateUserData(
+                              name: newName,
+                              bio: newBio,
+                              phone: newPhone,
+                            );
+
+                        if (dialogCtx.mounted) {
+                          Navigator.of(dialogCtx).pop();
+                        }
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Profile updated successfully!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (stfCtx.mounted) {
+                          setDialogState(() => isSaving = false);
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to update profile: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
                       }
                     },
               child: isSaving
@@ -149,8 +181,15 @@ class StudentProfileTab extends ConsumerWidget {
         avatarUrl: dataUri,
       );
 
-      await ref.read(authStatusProvider.notifier).refreshProfile();
-      await ref.read(studentProfileProvider.notifier).refresh();
+      final updatedUser = user.copyWith(
+        avatarUrl: dataUri,
+        updatedAt: DateTime.now(),
+      );
+
+      ref.read(authStatusProvider.notifier).updateLocalUser(updatedUser);
+      ref.read(studentProfileProvider.notifier).updateUserData(
+        avatarUrl: dataUri,
+      );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -230,41 +269,12 @@ class StudentProfileTab extends ConsumerWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GestureDetector(
+                    UserAvatar(
+                      avatarUrl: student.user.avatarUrl,
+                      initials: student.user.initials,
+                      radius: 36,
+                      showEditBadge: true,
                       onTap: () => _pickAndUploadProfilePicture(context, ref, student.user),
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 36,
-                            backgroundColor: isDark ? AppColors.primaryContainerDark : AppColors.primaryContainer,
-                            backgroundImage: student.user.avatarUrl != null 
-                                ? (student.user.avatarUrl!.startsWith('data:') 
-                                    ? MemoryImage(base64Decode(student.user.avatarUrl!.split(',')[1])) 
-                                    : NetworkImage(student.user.avatarUrl!) as ImageProvider)
-                                : null,
-                            child: student.user.avatarUrl == null ? Text(
-                              student.user.initials,
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                color: isDark ? AppColors.primaryDark : AppColors.primary,
-                              ),
-                            ) : null,
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.camera_alt, size: 12, color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(

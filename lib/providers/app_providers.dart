@@ -90,8 +90,32 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
   StreamSubscription? _authSubscription;
   StreamSubscription? _sessionSubscription;
 
-  AuthStatusNotifier(this._ref) : super(const AuthState.initializing()) {
+  AuthStatusNotifier(this._ref) : super(_initialAuthState()) {
     _init();
+  }
+
+  static UserModel _synthesizeUserFromFirebase(User user) {
+    final email = user.email ?? '';
+    final defaultRole = (email.contains('faculty') || email.contains('teacher'))
+        ? UserRole.teacher
+        : (email == 'admin@presenza.edu' ? UserRole.admin : UserRole.student);
+    final name = user.displayName ?? (email.isNotEmpty ? email.split('@').first : 'Student');
+    return UserModel(
+      id: user.uid,
+      email: email,
+      name: name,
+      role: defaultRole,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  static AuthState _initialAuthState() {
+    final currentFirebaseUser = FirebaseAuth.instance.currentUser;
+    if (currentFirebaseUser != null) {
+      return AuthState.authenticated(_synthesizeUserFromFirebase(currentFirebaseUser));
+    }
+    return const AuthState.initializing();
   }
 
   void _init() {
@@ -100,12 +124,15 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       if (user == null) {
         state = const AuthState.unauthenticated();
       } else {
-        state = const AuthState.fetchingProfile();
+        // If not already authenticated, initialize with synthesized user so UI loads instantly
+        if (!state.isAuthenticated) {
+          state = AuthState.authenticated(_synthesizeUserFromFirebase(user));
+        }
         try {
           final firestoreService = _ref.read(firestoreServiceProvider);
           UserModel? userModel = await firestoreService.getUserModel(user.uid).timeout(
             const Duration(seconds: 10),
-            onTimeout: () => throw TimeoutException('Profile fetch timeout'),
+            onTimeout: () => null,
           );
           
           if (userModel != null) {
@@ -113,25 +140,11 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
             _monitorSession(firestoreService);
           } else {
             // Auto-provision user model for existing Firebase Auth users who don't have Firestore doc yet
-            final email = user.email ?? '';
-            final defaultRole = (email.contains('faculty') || email.contains('teacher'))
-                ? UserRole.teacher
-                : (email == 'admin@presenza.edu' ? UserRole.admin : UserRole.student);
-            
-            final name = user.displayName ?? (email.isNotEmpty ? email.split('@').first : 'Student');
-            
-            final synthesizedUser = UserModel(
-              id: user.uid,
-              email: email,
-              name: name,
-              role: defaultRole,
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            );
+            final synthesizedUser = _synthesizeUserFromFirebase(user);
             
             try {
               await firestoreService.saveUserModel(synthesizedUser);
-              if (defaultRole == UserRole.student) {
+              if (synthesizedUser.role == UserRole.student) {
                 final student = StudentModel(
                   user: synthesizedUser,
                   studentId: 'STU-${user.uid.length >= 6 ? user.uid.substring(0, 6).toUpperCase() : "001"}',
@@ -146,14 +159,16 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
               _monitorSession(firestoreService);
             } catch (saveError) {
               debugPrint('Auto-profile save fallback error: $saveError');
-              state = const AuthState.profileMissing();
+              // Maintain local synthesized authentication instead of locking user out
+              state = AuthState.authenticated(synthesizedUser);
             }
           }
         } catch (e) {
           debugPrint('AuthStatusNotifier: Failed to load profile: $e');
-          state = AuthState.error(
-            'Failed to load your profile. Please check your connection and try again.',
-          );
+          // On transient error, maintain current authenticated state with synthesized user
+          if (!state.isAuthenticated) {
+            state = AuthState.authenticated(_synthesizeUserFromFirebase(user));
+          }
         }
       }
     });
@@ -254,17 +269,24 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       state = const AuthState.unauthenticated();
       return;
     }
-    state = const AuthState.fetchingProfile();
+    // Only transition to fetchingProfile if not already authenticated,
+    // avoiding destructive tear down of current screens / shell widgets.
+    if (!state.isAuthenticated) {
+      state = const AuthState.fetchingProfile();
+    }
     try {
       final firestoreService = _ref.read(firestoreServiceProvider);
       final userModel = await firestoreService.getUserModel(user.uid);
       if (userModel != null) {
         state = AuthState.authenticated(userModel);
-      } else {
+      } else if (!state.isAuthenticated) {
         state = const AuthState.profileMissing();
       }
     } catch (e) {
-      state = AuthState.error('Failed to refresh profile: $e');
+      debugPrint('AuthStatusNotifier: Failed to refresh profile: $e');
+      if (!state.isAuthenticated) {
+        state = AuthState.error('Failed to refresh profile: $e');
+      }
     }
   }
 
@@ -347,6 +369,19 @@ class StudentProfileNotifier extends StateNotifier<StudentModel?> {
   Future<void> refresh() async {
     if (_user != null) {
       await _load(_user.id);
+    }
+  }
+
+  void updateUserData({String? name, String? bio, String? phone, String? avatarUrl}) {
+    if (state != null) {
+      final updatedUser = state!.user.copyWith(
+        name: name,
+        bio: bio,
+        phone: phone,
+        avatarUrl: avatarUrl,
+        updatedAt: DateTime.now(),
+      );
+      state = state!.copyWith(user: updatedUser);
     }
   }
 }
@@ -514,6 +549,19 @@ class TeacherProfileNotifier extends StateNotifier<TeacherModel?> {
   Future<void> refresh() async {
     if (_user != null) {
       await _load(_user.id);
+    }
+  }
+
+  void updateUserData({String? name, String? bio, String? phone, String? avatarUrl}) {
+    if (state != null) {
+      final updatedUser = state!.user.copyWith(
+        name: name,
+        bio: bio,
+        phone: phone,
+        avatarUrl: avatarUrl,
+        updatedAt: DateTime.now(),
+      );
+      state = state!.copyWith(user: updatedUser);
     }
   }
 }

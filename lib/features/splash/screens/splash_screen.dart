@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/auth_state.dart';
 import 'package:presenza/providers/app_providers.dart';
@@ -73,8 +74,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       }
     });
 
-    // 2. Safety fallback timeout (~2.0s) - guarantees app never hangs on splash
-    _fallbackTimer = Timer(const Duration(milliseconds: 2000), () {
+    // 2. Safety fallback timeout (~3.0s) - guarantees app never hangs on splash
+    _fallbackTimer = Timer(const Duration(milliseconds: 3000), () {
       if (mounted && !_hasNavigated) {
         _forceNavigation();
       }
@@ -92,12 +93,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   void _forceNavigation() {
     if (_hasNavigated || !mounted) return;
-    _hasNavigated = true;
 
     final authStatus = ref.read(authStatusProvider);
     if (authStatus.status == AuthStatus.authenticated && authStatus.user != null) {
+      _hasNavigated = true;
       _routeForRole(authStatus.user!.role);
-    } else if (authStatus.status == AuthStatus.profileMissing) {
+      return;
+    }
+
+    final currentFirebaseUser = FirebaseAuth.instance.currentUser;
+    if (currentFirebaseUser != null) {
+      _hasNavigated = true;
+      final email = currentFirebaseUser.email ?? '';
+      final role = (email.contains('faculty') || email.contains('teacher'))
+          ? UserRole.teacher
+          : (email == 'admin@presenza.edu' ? UserRole.admin : UserRole.student);
+      _routeForRole(role);
+      return;
+    }
+
+    _hasNavigated = true;
+    if (authStatus.status == AuthStatus.profileMissing) {
       context.go('/no-profile');
     } else {
       context.go('/login');
@@ -109,25 +125,33 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     final authStatus = ref.read(authStatusProvider);
 
-    if (authStatus.status == AuthStatus.initializing ||
-        authStatus.status == AuthStatus.authenticating ||
-        authStatus.status == AuthStatus.fetchingProfile) {
-      return;
-    }
-
-    _hasNavigated = true;
-
     if (authStatus.status == AuthStatus.profileMissing) {
+      _hasNavigated = true;
       context.go('/no-profile');
       return;
     }
 
     if (authStatus.status == AuthStatus.authenticated && authStatus.user != null) {
+      _hasNavigated = true;
       _routeForRole(authStatus.user!.role);
       return;
     }
 
-    context.go('/login');
+    final currentFirebaseUser = FirebaseAuth.instance.currentUser;
+    if (currentFirebaseUser != null) {
+      _hasNavigated = true;
+      final email = currentFirebaseUser.email ?? '';
+      final role = (email.contains('faculty') || email.contains('teacher'))
+          ? UserRole.teacher
+          : (email == 'admin@presenza.edu' ? UserRole.admin : UserRole.student);
+      _routeForRole(role);
+      return;
+    }
+
+    if (authStatus.status == AuthStatus.unauthenticated) {
+      _hasNavigated = true;
+      context.go('/login');
+    }
   }
 
   void _routeForRole(UserRole role) {

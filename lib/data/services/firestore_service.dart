@@ -64,7 +64,7 @@ class FirestoreService {
     if (phone != null) updates['phone'] = phone;
     if (avatarUrl != null) updates['avatarUrl'] = avatarUrl;
 
-    await _db.collection('users').doc(uid).update(updates);
+    await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
 
     // Also update nested user document in students/teachers collection if present
     final studentDoc = await _db.collection('students').doc(uid).get();
@@ -72,7 +72,7 @@ class FirestoreService {
       final current = studentDoc.data()!;
       final userMap = Map<String, dynamic>.from(current['user'] as Map? ?? {});
       userMap.addAll(updates);
-      await _db.collection('students').doc(uid).update({'user': userMap});
+      await _db.collection('students').doc(uid).set({'user': userMap}, SetOptions(merge: true));
     }
 
     final teacherDoc = await _db.collection('teachers').doc(uid).get();
@@ -80,7 +80,7 @@ class FirestoreService {
       final current = teacherDoc.data()!;
       final userMap = Map<String, dynamic>.from(current['user'] as Map? ?? {});
       userMap.addAll(updates);
-      await _db.collection('teachers').doc(uid).update({'user': userMap});
+      await _db.collection('teachers').doc(uid).set({'user': userMap}, SetOptions(merge: true));
     }
   }
 
