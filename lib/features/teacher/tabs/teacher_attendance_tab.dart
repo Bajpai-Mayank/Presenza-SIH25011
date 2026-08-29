@@ -12,6 +12,7 @@ import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:presenza/data/services/location_service.dart';
+import 'package:presenza/core/utils/csv_export_service.dart';
 
 class TeacherAttendanceTab extends ConsumerStatefulWidget {
   const TeacherAttendanceTab({super.key});
@@ -1244,27 +1245,56 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
                 .streamAttendanceRecordsForSession(session.id),
             builder: (context, snapshot) {
               final records = snapshot.data ?? [];
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.elevatedDark : AppColors.slate100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.people_alt_outlined, size: 18, color: AppColors.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${records.length} Students Checked In',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              return Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.elevatedDark : AppColors.slate100,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
-                ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.people_alt_outlined, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${records.length} Students Checked In',
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (records.isNotEmpty)
+                    SizedBox(
+                      width: double.infinity,
+                      child: AppButton.secondary(
+                        label: 'Export Attendance (CSV)',
+                        icon: Icons.file_download_outlined,
+                        onPressed: () async {
+                          final students = ref.read(allStudentsProvider);
+                          final ok = await CsvExportService.exportSessionAttendance(
+                            session: session,
+                            records: records,
+                            enrolledStudents: students,
+                          );
+                          if (context.mounted && ok) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Attendance CSV exported successfully!'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                ],
               );
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
           AppButton.outlined(
             label: 'Close Attendance Session',

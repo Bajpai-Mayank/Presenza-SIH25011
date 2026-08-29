@@ -7,6 +7,7 @@ import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:share_plus/share_plus.dart';
 
 class AdminCircularsTab extends ConsumerWidget {
   const AdminCircularsTab({super.key});
@@ -280,6 +281,26 @@ class AdminCircularsTab extends ConsumerWidget {
                           height: 1.4,
                           color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.share_rounded, size: 18),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Share Notice',
+                            onPressed: () {
+                              SharePlus.instance.share(
+                                ShareParams(
+                                  text: '📢 Official Administration Circular: ${notice.title}\n\n${notice.description}\n\nPublished: ${DateFormat('d MMM yyyy').format(notice.createdAt)}\nPresenza Campus Portal',
+                                  subject: notice.title,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),

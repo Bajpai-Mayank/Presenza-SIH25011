@@ -73,6 +73,18 @@ final authStateProvider = Provider<UserModel?>((ref) {
   return ref.watch(authStatusProvider).user;
 });
 
+class RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+  RouterNotifier(this._ref) {
+    _ref.listen<AuthState>(
+      authStatusProvider,
+      (_, _) => notifyListeners(),
+    );
+  }
+}
+
+final routerNotifierProvider = Provider<RouterNotifier>((ref) => RouterNotifier(ref));
+
 class AuthStatusNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
   StreamSubscription? _authSubscription;
@@ -155,8 +167,8 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
         _sessionSubscription = firestoreService
             .streamUserSession(activeSessionId)
             .listen((session) {
-          if (session == null || !session.isActive) {
-            // Session invalidated by another login
+          if (session != null && !session.isActive) {
+            // Session explicitly deactivated by another login
             FirebaseAuth.instance.signOut();
           }
         });

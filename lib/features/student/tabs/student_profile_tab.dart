@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:presenza/config/theme/app_colors.dart';
-import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
@@ -219,7 +218,7 @@ class StudentProfileTab extends ConsumerWidget {
     ];
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -261,7 +260,7 @@ class StudentProfileTab extends ConsumerWidget {
                                 color: AppColors.primary,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                              child: const Icon(Icons.camera_alt, size: 12, color: Colors.white),
                             ),
                           ),
                         ],
@@ -272,29 +271,48 @@ class StudentProfileTab extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            student.user.name,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  student.user.name,
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                 ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, size: 18),
+                                onPressed: () => _showEditProfileDialog(context, ref, student.user),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             student.user.email,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           const SizedBox(height: 6),
-                          Row(
-                            children: const [
-                              RoleBadge(role: UserRole.student),
-                            ],
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isDark ? AppColors.elevatedDark : AppColors.slate200,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${student.studentId} • Sem ${student.semester}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, size: 20),
-                      onPressed: () => _showEditProfileDialog(context, ref, student.user),
                     ),
                   ],
                 ),
@@ -307,28 +325,9 @@ class StudentProfileTab extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: _ProfileInfoItem(
-                        label: 'Roll No',
-                        value: student.studentId,
-                        icon: Icons.fingerprint_rounded,
-                      ),
-                    ),
-                    Expanded(
-                      child: _ProfileInfoItem(
-                        label: 'Semester',
-                        value: 'Semester ${student.semester}',
+                        label: 'Course',
+                        value: student.courseId.replaceAll('course-', '').toUpperCase(),
                         icon: Icons.school_outlined,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _ProfileInfoItem(
-                        label: 'Department',
-                        value: student.user.department ?? 'Computer Science',
-                        icon: Icons.apartment_rounded,
                       ),
                     ),
                     Expanded(
@@ -360,7 +359,7 @@ class StudentProfileTab extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Quick Stats Grid
           Row(
@@ -384,7 +383,7 @@ class StudentProfileTab extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Achievements & Milestones Showcase
           Text(
@@ -393,22 +392,22 @@ class StudentProfileTab extends ConsumerWidget {
                   fontWeight: FontWeight.w800,
                 ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1.2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 1.45,
             ),
             itemCount: achievements.length,
             itemBuilder: (context, index) {
               final ach = achievements[index];
               return AppCard(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -417,20 +416,20 @@ class StudentProfileTab extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
                             color: (ach.isUnlocked ? ach.color : AppColors.slate400).withAlpha(25),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             ach.icon,
                             color: ach.isUnlocked ? ach.color : AppColors.slate400,
-                            size: 20,
+                            size: 16,
                           ),
                         ),
                         Icon(
                           ach.isUnlocked ? Icons.verified_rounded : Icons.lock_outline_rounded,
-                          size: 16,
+                          size: 14,
                           color: ach.isUnlocked ? AppColors.success : AppColors.slate400,
                         ),
                       ],
@@ -442,7 +441,7 @@ class StudentProfileTab extends ConsumerWidget {
                           ach.title,
                           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                                fontSize: 12,
                               ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -451,9 +450,9 @@ class StudentProfileTab extends ConsumerWidget {
                         Text(
                           ach.description,
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                fontSize: 10,
+                                fontSize: 9,
                               ),
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
@@ -463,7 +462,7 @@ class StudentProfileTab extends ConsumerWidget {
               );
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Settings Section
           Text(
@@ -472,7 +471,7 @@ class StudentProfileTab extends ConsumerWidget {
                   fontWeight: FontWeight.w800,
                 ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           AppCard(
             padding: EdgeInsets.zero,
@@ -540,7 +539,7 @@ class StudentProfileTab extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
         ],
       ),
     );

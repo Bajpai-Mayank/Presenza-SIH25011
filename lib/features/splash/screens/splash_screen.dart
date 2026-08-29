@@ -65,16 +65,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       }
     });
 
-    // 1. Min branded duration (~1.0s)
-    _timer = Timer(const Duration(milliseconds: 1000), () {
+    // 1. Min branded duration (~700ms for snappy startup)
+    _timer = Timer(const Duration(milliseconds: 700), () {
       if (mounted) {
         setState(() => _minDurationElapsed = true);
         _checkAndNavigate();
       }
     });
 
-    // 2. Safety fallback timeout (~2.2s) - guarantees app never hangs on splash
-    _fallbackTimer = Timer(const Duration(milliseconds: 2200), () {
+    // 2. Safety fallback timeout (~2.0s) - guarantees app never hangs on splash
+    _fallbackTimer = Timer(const Duration(milliseconds: 2000), () {
       if (mounted && !_hasNavigated) {
         _forceNavigation();
       }

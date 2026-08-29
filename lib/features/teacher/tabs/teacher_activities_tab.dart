@@ -7,6 +7,7 @@ import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:share_plus/share_plus.dart';
 
 class TeacherActivitiesTab extends ConsumerStatefulWidget {
   const TeacherActivitiesTab({super.key});
@@ -316,7 +317,7 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                Row(
+                                 Row(
                                   children: [
                                     Text(
                                       'By ${post.authorName} (${post.authorRole})',
@@ -327,6 +328,23 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
                                       ),
                                     ),
                                     const Spacer(),
+                                    IconButton(
+                                      icon: const Icon(Icons.share_rounded, size: 18),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      tooltip: 'Share Notice',
+                                      onPressed: () {
+                                        final venueStr = post.location != null ? '\n📍 Venue: ${post.location}' : '';
+                                        final dateStr = post.eventDate != null ? '\n🗓 Date: ${DateFormat('d MMM yyyy, hh:mm a').format(post.eventDate!)}' : '';
+                                        SharePlus.instance.share(
+                                          ShareParams(
+                                            text: '📢 Presenza Official Notice: ${post.title}\n\n${post.description}$dateStr$venueStr\n\nPublished by ${post.authorName}',
+                                            subject: post.title,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(width: 8),
                                     Text(
                                       DateFormat('d MMM, yyyy').format(post.createdAt),
                                       style: TextStyle(

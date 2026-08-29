@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:presenza/core/utils/csv_export_service.dart';
 
 class AdminAttendanceTab extends ConsumerWidget {
   const AdminAttendanceTab({super.key});
@@ -115,11 +116,36 @@ class AdminAttendanceTab extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // ── Student Directory Attendance Summary ────────────────────
-            Text(
-              'Enrolled Student Roster',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Enrolled Student Roster',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                TextButton.icon(
+                  onPressed: students.isEmpty
+                      ? null
+                      : () async {
+                          final ok = await CsvExportService.exportStudentRoster(
+                            batchName: 'Campus Enrolled Students',
+                            students: students,
+                          );
+                          if (context.mounted && ok) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Campus student roster exported to CSV!'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        },
+                  icon: const Icon(Icons.file_download_outlined, size: 18),
+                  label: const Text('Export Roster (CSV)'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
 

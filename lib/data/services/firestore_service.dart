@@ -226,9 +226,12 @@ class FirestoreService {
         .collection('circulars')
         .snapshots()
         .map((snapshot) {
-      final list = snapshot.docs
-          .map((doc) => CircularModel.fromJson(doc.data()))
-          .toList();
+      final list = <CircularModel>[];
+      for (final doc in snapshot.docs) {
+        try {
+          list.add(CircularModel.fromJson(doc.data()));
+        } catch (_) {}
+      }
       list.sort((a, b) => b.publishDate.compareTo(a.publishDate));
       return list;
     });
@@ -266,17 +269,92 @@ class FirestoreService {
     });
   }
 
-  /// Create or update a campus activity post.
+  /// Create or update a campus activity post, automatically broadcasting notifications for official notices.
   Future<void> saveActivityPost(ActivityPostModel post) async {
     await _db.collection('circulars').doc(post.id).set(post.toJson());
+    if (post.isOfficial && post.status == ActivityStatus.approved) {
+      // Broadcast in-app notifications asynchronously
+      broadcastNoticeNotification(post);
+    }
   }
 
-  /// Approve a pending student post.
+  /// Approve a pending student post and broadcast notification.
   Future<void> approveActivityPost(String postId) async {
+    final now = DateTime.now();
     await _db.collection('circulars').doc(postId).update({
       'status': ActivityStatus.approved.name,
-      'updatedAt': DateTime.now().toIso8601String(),
+      'updatedAt': now.toIso8601String(),
     });
+    final doc = await _db.collection('circulars').doc(postId).get();
+    if (doc.exists && doc.data() != null) {
+      final post = ActivityPostModel.fromJson(doc.data()!);
+      broadcastNoticeNotification(post);
+    }
+  }
+
+  /// Broadcasts notification to targeted audience or campus community.
+  Future<void> broadcastNoticeNotification(ActivityPostModel post) async {
+    try {
+      final usersSnap = await _db.collection('users').get();
+      final studentsSnap = await _db.collection('students').get();
+
+      final Map<String, StudentModel> studentMap = {};
+      for (final doc in studentsSnap.docs) {
+        try {
+          final s = StudentModel.fromJson(doc.data());
+          studentMap[s.user.id] = s;
+        } catch (_) {}
+      }
+
+      final targetUserIds = <String>{};
+
+      for (final doc in usersSnap.docs) {
+        final uid = doc.id;
+        if (uid == post.authorId) continue; // Don't notify the author themselves
+
+        final student = studentMap[uid];
+        if (student != null) {
+          if (post.targetCourseIds.isNotEmpty && !post.targetCourseIds.contains(student.courseId)) {
+            continue;
+          }
+          if (post.targetBatchIds.isNotEmpty && !post.targetBatchIds.contains(student.batchId)) {
+            continue;
+          }
+          if (post.targetSemesters.isNotEmpty && !post.targetSemesters.contains(student.semester)) {
+            continue;
+          }
+        }
+        targetUserIds.add(uid);
+      }
+
+      if (targetUserIds.isEmpty) return;
+
+      final now = DateTime.now();
+      final userList = targetUserIds.toList();
+      for (var i = 0; i < userList.length; i += 450) {
+        final chunk = userList.sublist(i, (i + 450 > userList.length) ? userList.length : i + 450);
+        final batch = _db.batch();
+        for (final uid in chunk) {
+          final notifId = _uuid.v4();
+          final notif = NotificationModel(
+            id: notifId,
+            userId: uid,
+            title: post.isOfficial ? 'Notice: ${post.title}' : 'Activity: ${post.title}',
+            body: post.description.length > 120
+                ? '${post.description.substring(0, 120)}...'
+                : post.description,
+            type: NotificationType.circular,
+            referenceId: post.id,
+            isRead: false,
+            createdAt: now,
+          );
+          batch.set(_db.collection('notifications').doc(notifId), notif.toJson());
+        }
+        await batch.commit();
+      }
+    } catch (e) {
+      debugPrint('Failed to broadcast notice notifications: $e');
+    }
   }
 
   /// Reject a pending student post.

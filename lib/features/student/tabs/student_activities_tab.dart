@@ -76,7 +76,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Submit Activity / Event',
+                        'Submit Notice / Campus Activity',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                             ),
@@ -89,7 +89,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Student posts are reviewed and approved by faculty before going live.',
+                    'Create and share notices or activities. Student posts are reviewed by faculty before going live.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   const SizedBox(height: 20),
@@ -397,7 +397,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreatePostDialog(context),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Post Activity'),
+        label: const Text('Create Notice / Post'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
@@ -715,9 +715,14 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   // Share
                   InkWell(
                     onTap: () {
-                      final url = 'https://presenza.app/activity/${post.id}';
-                      // ignore: deprecated_member_use
-                      Share.share('Check out this activity on Presenza: ${post.title}\n$url');
+                      final venueStr = post.location != null ? '\n📍 Venue: ${post.location}' : '';
+                      final dateStr = post.eventDate != null ? '\n🗓 Date: ${DateFormat('d MMM yyyy, hh:mm a').format(post.eventDate!)}' : '';
+                      SharePlus.instance.share(
+                        ShareParams(
+                          text: '📢 Presenza Announcement: ${post.title}\n\n${post.description}$dateStr$venueStr\n\nShared via Presenza Academic Portal',
+                          subject: post.title,
+                        ),
+                      );
                     },
                     borderRadius: BorderRadius.circular(8),
                     child: const Padding(

@@ -6,6 +6,7 @@ import 'package:presenza/core/enums/attendance_status.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:presenza/core/utils/csv_export_service.dart';
 
 class StudentAttendanceTab extends ConsumerStatefulWidget {
   const StudentAttendanceTab({super.key});
@@ -163,18 +164,44 @@ class _StudentAttendanceTabState extends ConsumerState<StudentAttendanceTab> {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Calendar Overview
-            Text(
-              'Monthly Overview',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+            // Calendar Overview & Export Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Monthly Overview',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final student = ref.read(studentProfileProvider);
+                    if (student == null) return;
+                    final ok = await CsvExportService.exportStudentPersonalAttendance(
+                      student: student,
+                      subjects: subjects,
+                      records: allRecords,
+                    );
+                    if (context.mounted && ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Attendance report exported to CSV successfully!'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.file_download_outlined, size: 18),
+                  label: const Text('Export (CSV)'),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             AppCard(
               padding: const EdgeInsets.all(16),
               child: AttendanceCalendar(

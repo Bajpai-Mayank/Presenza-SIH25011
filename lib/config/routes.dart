@@ -20,12 +20,14 @@ import 'package:presenza/features/admin/screens/admin_shell.dart';
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authStatus = ref.watch(authStatusProvider);
+  final routerNotifier = ref.watch(routerNotifierProvider);
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/splash',
+    refreshListenable: routerNotifier,
     redirect: (context, state) {
+      final authStatus = ref.read(authStatusProvider);
       final currentLoc = state.matchedLocation;
       final isSplashRoute = currentLoc == '/splash';
       final isAuthRoute = currentLoc == '/login' ||
@@ -38,11 +40,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // While auth is in progress (initializing, authenticating, fetchingProfile), stay on login/auth routes
+      // While auth is in progress (initializing, authenticating, fetchingProfile), stay on current route
       if (authStatus.status == AuthStatus.initializing || 
           authStatus.status == AuthStatus.authenticating || 
           authStatus.status == AuthStatus.fetchingProfile) {
-        if (!isAuthRoute && !isNoProfileRoute) return '/login';
         return null;
       }
 

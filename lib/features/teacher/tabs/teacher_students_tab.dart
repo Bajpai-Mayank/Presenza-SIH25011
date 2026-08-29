@@ -5,6 +5,7 @@ import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
+import 'package:presenza/core/utils/csv_export_service.dart';
 
 class TeacherStudentsTab extends ConsumerStatefulWidget {
   const TeacherStudentsTab({super.key});
@@ -168,30 +169,62 @@ class _TeacherStudentsTabState extends ConsumerState<TeacherStudentsTab> {
             ),
           ),
 
-          // Batch Filter Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+          // Batch Filter Chips & Export Button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Row(
               children: [
-                ChoiceChip(
-                  label: const Text('All Sections'),
-                  selected: _selectedBatchId == null,
-                  onSelected: (_) => setState(() => _selectedBatchId = null),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ChoiceChip(
+                          label: const Text('All Sections'),
+                          selected: _selectedBatchId == null,
+                          onSelected: (_) => setState(() => _selectedBatchId = null),
+                        ),
+                        const SizedBox(width: 8),
+                        ...batches.map((b) {
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(b.name),
+                              selected: _selectedBatchId == b.id,
+                              onSelected: (val) {
+                                setState(() => _selectedBatchId = val ? b.id : null);
+                              },
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                ...batches.map((b) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(b.name),
-                      selected: _selectedBatchId == b.id,
-                      onSelected: (val) {
-                        setState(() => _selectedBatchId = val ? b.id : null);
-                      },
-                    ),
-                  );
-                }),
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.file_download_outlined, size: 20),
+                  tooltip: 'Export Student Roster (CSV)',
+                  onPressed: filtered.isEmpty
+                      ? null
+                      : () async {
+                          final batchName = _selectedBatchId != null
+                              ? (batches.where((b) => b.id == _selectedBatchId).firstOrNull?.name ?? 'Section')
+                              : 'All Students';
+                          final ok = await CsvExportService.exportStudentRoster(
+                            batchName: batchName,
+                            students: filtered,
+                          );
+                          if (context.mounted && ok) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Student roster exported to CSV successfully!'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        },
+                ),
               ],
             ),
           ),
