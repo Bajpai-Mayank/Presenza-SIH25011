@@ -96,15 +96,14 @@ service cloud.firestore {
       allow write: if isTeacherOrAdmin();
     }
 
-    // Attendance Records (Students can submit their own check-ins, teachers can manage)
+    // Attendance Records (Students can submit their own check-ins, teachers can manage and mark absentees)
     match /attendance_records/{id} {
       allow read: if signedIn();
       allow create: if signedIn() && (
         (request.resource.data.studentId == request.auth.uid && 
          id == request.resource.data.attendanceSessionId + '_' + request.auth.uid &&
          exists(/databases/$(database)/documents/sessions/$(request.resource.data.attendanceSessionId)) &&
-         get(/databases/$(database)/documents/sessions/$(request.resource.data.attendanceSessionId)).data.isActive == true &&
-         request.time <= get(/databases/$(database)/documents/sessions/$(request.resource.data.attendanceSessionId)).data.endTime) ||
+         get(/databases/$(database)/documents/sessions/$(request.resource.data.attendanceSessionId)).data.isActive == true) ||
         isTeacherOrAdmin()
       );
       allow update, delete: if isTeacherOrAdmin();
@@ -118,7 +117,13 @@ service cloud.firestore {
         isTeacherOrAdmin() ||
         (request.resource.data.isOfficial == false && request.resource.data.authorId == request.auth.uid)
       );
-      allow update, delete: if isTeacherOrAdmin() || (signedIn() && resource.data.authorId == request.auth.uid);
+      allow update: if signedIn() && (
+        isTeacherOrAdmin() || 
+        resource.data.authorId == request.auth.uid ||
+        // Allow any signed-in user to react (like, clap, fire) or mark interested/going
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userReactions', 'reactionCounts', 'interestedUids', 'updatedAt'])
+      );
+      allow delete: if isTeacherOrAdmin() || (signedIn() && resource.data.authorId == request.auth.uid);
     }
 
     match /events/{id} {
@@ -131,6 +136,14 @@ service cloud.firestore {
       allow write: if isTeacherOrAdmin();
     }
 
+    // Student Profile Update Requests (Subject to Teacher/Admin Approval)
+    match /profile_update_requests/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if isTeacherOrAdmin() || (signedIn() && resource.data.studentUid == request.auth.uid);
+      allow delete: if isTeacherOrAdmin();
+    }
+
     // Policies, Leaderboard, Notifications & Audit Logs
     match /policies/{id} {
       allow read: if signedIn();
@@ -139,7 +152,7 @@ service cloud.firestore {
 
     match /leaderboard/{id} {
       allow read: if signedIn();
-      allow write: if isTeacherOrAdmin();
+      allow write: if signedIn() && (id == request.auth.uid || isTeacherOrAdmin());
     }
 
     match /notifications/{id} {

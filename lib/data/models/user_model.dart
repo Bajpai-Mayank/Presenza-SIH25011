@@ -123,6 +123,7 @@ class StudentModel {
   final String studentId;
   final String courseId;
   final String batchId;
+  final String section;
   final int semester;
   final DateTime enrollmentDate;
 
@@ -131,26 +132,46 @@ class StudentModel {
     required this.studentId,
     required this.courseId,
     required this.batchId,
+    this.section = 'A',
     required this.semester,
     required this.enrollmentDate,
   });
 
-  factory StudentModel.fromJson(Map<String, dynamic> json) => StudentModel(
-        user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
-        studentId: json['studentId'] as String? ?? 'STU-001',
-        courseId: json['courseId'] as String? ?? 'course-btech-cse',
-        batchId: json['batchId'] as String? ?? 'batch-2024-a',
-        semester: (json['semester'] as num?)?.toInt() ?? 4,
-        enrollmentDate: json['enrollmentDate'] != null
-            ? DateTime.tryParse(json['enrollmentDate'] as String) ?? DateTime.now()
-            : DateTime.now(),
-      );
+  factory StudentModel.fromJson(Map<String, dynamic> json) {
+    String sectionVal = (json['section'] as String?)?.trim().toUpperCase() ?? '';
+    if (sectionVal.isEmpty) {
+      final batch = json['batchId'] as String? ?? '';
+      final parts = batch.split('_');
+      if (parts.length >= 4) {
+        sectionVal = parts.last.toUpperCase();
+      } else if (batch.contains('-')) {
+        final dashParts = batch.split('-');
+        if (dashParts.isNotEmpty && dashParts.last.length <= 2) {
+          sectionVal = dashParts.last.toUpperCase();
+        }
+      }
+      if (sectionVal.isEmpty) sectionVal = 'A';
+    }
+
+    return StudentModel(
+      user: UserModel.fromJson(json['user'] as Map<String, dynamic>),
+      studentId: json['studentId'] as String? ?? 'STU-001',
+      courseId: json['courseId'] as String? ?? 'course-btech-cse',
+      batchId: json['batchId'] as String? ?? 'batch-2024-a',
+      section: sectionVal,
+      semester: (json['semester'] as num?)?.toInt() ?? 4,
+      enrollmentDate: json['enrollmentDate'] != null
+          ? DateTime.tryParse(json['enrollmentDate'] as String) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'user': user.toJson(),
         'studentId': studentId,
         'courseId': courseId,
         'batchId': batchId,
+        'section': section,
         'semester': semester,
         'enrollmentDate': enrollmentDate.toIso8601String(),
       };
@@ -160,6 +181,7 @@ class StudentModel {
     String? studentId,
     String? courseId,
     String? batchId,
+    String? section,
     int? semester,
     DateTime? enrollmentDate,
   }) =>
@@ -168,6 +190,7 @@ class StudentModel {
         studentId: studentId ?? this.studentId,
         courseId: courseId ?? this.courseId,
         batchId: batchId ?? this.batchId,
+        section: section ?? this.section,
         semester: semester ?? this.semester,
         enrollmentDate: enrollmentDate ?? this.enrollmentDate,
       );

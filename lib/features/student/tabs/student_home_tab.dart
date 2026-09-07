@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/attendance_status.dart';
+import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -30,11 +31,23 @@ class StudentHomeTab extends ConsumerWidget {
     final activitiesAsync = ref.watch(activitiesStreamProvider);
     final activities = activitiesAsync.valueOrNull ?? [];
     final streak = ref.watch(attendanceStreakProvider);
+    final courses = ref.watch(allCoursesCatalogProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (student == null) {
       return const DashboardShimmer();
     }
+
+    final courseObj = courses.firstWhere(
+      (c) => c.id == student.courseId,
+      orElse: () => CourseModel(
+        id: student.courseId,
+        name: student.courseId.replaceAll('course-', '').toUpperCase(),
+        code: student.courseId.replaceAll('course-', '').toUpperCase(),
+        departmentId: '',
+        totalSemesters: 8,
+      ),
+    );
 
     final totalPresent = subjects.fold(0, (sum, sa) => sum + sa.present);
     final totalAbsent = subjects.fold(0, (sum, sa) => sum + sa.absent);
@@ -84,14 +97,30 @@ class StudentHomeTab extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      Text(
-                        '${student.studentId} • Semester ${student.semester}',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: isDark
-                                  ? AppColors.secondaryDark
-                                  : AppColors.secondary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 6,
+                        runSpacing: 2,
+                        children: [
+                          Text(
+                            courseObj.name,
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: isDark
+                                      ? AppColors.secondaryDark
+                                      : AppColors.secondary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                          Text(
+                            '•  Sec ${student.section}  •  Sem ${student.semester}',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: isDark
+                                      ? AppColors.textMutedDark
+                                      : AppColors.textMutedLight,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
                       ),
                       if (enrolledCount > 0)
                         Padding(

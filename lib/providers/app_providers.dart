@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +10,7 @@ import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/course_model.dart';
 import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/data/models/user_session_model.dart';
+import 'package:presenza/data/models/profile_update_request_model.dart';
 import 'package:presenza/data/models/auth_state.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:presenza/data/services/firestore_service.dart';
@@ -405,6 +407,14 @@ final enrolledStudentsCountProvider = FutureProvider<int>((ref) async {
   return firestore.getEnrolledStudentCount(student.batchId);
 });
 
+final studentBatchSessionsProvider =
+    StreamProvider<List<AttendanceSessionModel>>((ref) {
+  final student = ref.watch(studentProfileProvider);
+  if (student == null) return Stream.value([]);
+  final firestore = ref.watch(firestoreServiceProvider);
+  return firestore.streamAllSessionsForBatch(student.courseId, student.batchId);
+});
+
 final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
   final student = ref.watch(studentProfileProvider);
   if (student == null) return [];
@@ -413,6 +423,7 @@ final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
   final teachers = ref.watch(allTeachersProvider);
   final recordsAsync = ref.watch(studentAttendanceRecordsProvider);
   final records = recordsAsync.value ?? [];
+  final allSessions = ref.watch(studentBatchSessionsProvider).value ?? [];
 
   final studentSubjects =
       subjects.where((sub) => sub.courseId == student.courseId).toList();
@@ -420,6 +431,15 @@ final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
   final Map<String, List<AttendanceRecordModel>> grouped = {};
   for (final r in records) {
     grouped.putIfAbsent(r.subjectId, () => []).add(r);
+  }
+
+  // Count concluded sessions for this batch by subject
+  final Map<String, int> conductedSessionsBySubject = {};
+  for (final s in allSessions) {
+    if (!s.isActive || s.isExpired) {
+      conductedSessionsBySubject[s.subjectId] =
+          (conductedSessionsBySubject[s.subjectId] ?? 0) + 1;
+    }
   }
 
   return studentSubjects.map((sub) {
@@ -430,7 +450,27 @@ final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
         ?.user
         .name;
 
-    if (subRecords.isEmpty) {
+    final presentCount =
+        subRecords.where((r) => r.status.name == 'present').length;
+    final lateCount =
+        subRecords.where((r) => r.status.name == 'late').length;
+    final recordedAbsentCount =
+        subRecords.where((r) => r.status.name == 'absent').length;
+    final excusedCount =
+        subRecords.where((r) => r.status.name == 'excused').length;
+
+    // Total sessions conducted by faculty for this subject
+    final totalConducted = conductedSessionsBySubject[sub.id] ?? 0;
+    // Unscanned sessions are treated as absents
+    final unattendedConcluded =
+        math.max(0, totalConducted - (presentCount + lateCount + excusedCount));
+    final absentCount =
+        math.max(recordedAbsentCount, unattendedConcluded);
+
+    final totalClasses =
+        math.max(subRecords.length, presentCount + lateCount + excusedCount + absentCount);
+
+    if (totalClasses == 0) {
       return SubjectAttendance(
         subjectId: sub.id,
         subjectName: sub.name,
@@ -445,25 +485,18 @@ final subjectAttendanceProvider = Provider<List<SubjectAttendance>>((ref) {
       );
     }
 
-    final present =
-        subRecords.where((r) => r.status.name == 'present').length;
-    final absent = subRecords.where((r) => r.status.name == 'absent').length;
-    final late = subRecords.where((r) => r.status.name == 'late').length;
-    final excused =
-        subRecords.where((r) => r.status.name == 'excused').length;
-
     return SubjectAttendance(
       subjectId: sub.id,
       subjectName: sub.name,
       subjectCode: sub.code,
       teacherName: teacherName,
       credits: sub.credits,
-      totalClasses: subRecords.length,
-      present: present,
-      absent: absent,
-      late: late,
-      excused: excused,
-      currentStreak: present > 0 ? 1 : 0,
+      totalClasses: totalClasses,
+      present: presentCount,
+      absent: absentCount,
+      late: lateCount,
+      excused: excusedCount,
+      currentStreak: presentCount > 0 ? 1 : 0,
     );
   }).toList();
 });
@@ -861,5 +894,28 @@ final allActiveSessionsStreamProvider =
 final allActiveSessionsProvider =
     Provider<List<AttendanceSessionModel>>((ref) {
   return ref.watch(allActiveSessionsStreamProvider).valueOrNull ?? [];
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// PROFILE UPDATE REQUESTS (TEACHER APPROVAL WORKFLOW)
+// ══════════════════════════════════════════════════════════════════════
+
+final pendingProfileRequestsStreamProvider =
+    StreamProvider<List<ProfileUpdateRequestModel>>((ref) {
+  final firestore = ref.watch(firestoreServiceProvider);
+  return firestore.streamPendingProfileRequests();
+});
+
+final pendingProfileRequestsProvider =
+    Provider<List<ProfileUpdateRequestModel>>((ref) {
+  return ref.watch(pendingProfileRequestsStreamProvider).valueOrNull ?? [];
+});
+
+final studentProfileRequestStreamProvider =
+    StreamProvider<ProfileUpdateRequestModel?>((ref) {
+  final student = ref.watch(studentProfileProvider);
+  if (student == null) return Stream.value(null);
+  final firestore = ref.watch(firestoreServiceProvider);
+  return firestore.streamStudentProfileRequest(student.user.id);
 });
 

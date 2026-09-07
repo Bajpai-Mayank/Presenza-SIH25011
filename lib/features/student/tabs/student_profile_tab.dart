@@ -4,18 +4,28 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/data/models/user_model.dart';
+import 'package:presenza/data/models/course_model.dart';
+import 'package:presenza/data/models/profile_update_request_model.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 
 class StudentProfileTab extends ConsumerWidget {
   const StudentProfileTab({super.key});
 
-  void _showEditProfileDialog(BuildContext context, WidgetRef ref, UserModel user) {
-    final nameCtrl = TextEditingController(text: user.name);
-    final bioCtrl = TextEditingController(text: user.bio ?? '');
-    final phoneCtrl = TextEditingController(text: user.phone ?? '');
+  void _showEditProfileDialog(BuildContext context, WidgetRef ref, StudentModel student) {
+    final courses = ref.read(allCoursesCatalogProvider);
+    final nameCtrl = TextEditingController(text: student.user.name);
+    final bioCtrl = TextEditingController(text: student.user.bio ?? '');
+    final phoneCtrl = TextEditingController(text: student.user.phone ?? '');
+    
+    String selectedCourseId = student.courseId;
+    String selectedSection = student.section.isNotEmpty ? student.section : 'A';
+    int selectedSemester = student.semester;
+
     final formKey = GlobalKey<FormState>();
     bool isSaving = false;
 
@@ -23,26 +33,123 @@ class StudentProfileTab extends ConsumerWidget {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (stfCtx, setDialogState) => AlertDialog(
-          title: const Text('Edit Profile'),
+          title: const Text('Edit Profile & Academics'),
           content: Form(
             key: formKey,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(20),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Academic profile modifications require faculty verification before validation.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppColors.primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   AppTextField(
                     controller: nameCtrl,
-                    labelText: 'Full Name',
+                    labelText: 'Full Name *',
                     prefixIcon: Icons.person_outline,
                     validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null,
                   ),
                   const SizedBox(height: 14),
-                  AppTextField(
-                    controller: bioCtrl,
-                    labelText: 'Bio / About',
-                    hintText: 'Share your academic interests...',
-                    prefixIcon: Icons.edit_note_outlined,
-                    maxLines: 2,
+                  // Course Dropdown
+                  DropdownButtonFormField<String>(
+                    initialValue: courses.any((c) => c.id == selectedCourseId)
+                        ? selectedCourseId
+                        : (courses.isNotEmpty ? courses.first.id : selectedCourseId),
+                    decoration: InputDecoration(
+                      labelText: 'Course *',
+                      prefixIcon: const Icon(Icons.school_outlined),
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? AppColors.cardDark
+                          : AppColors.cardLight,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    isExpanded: true,
+                    items: courses.map((c) {
+                      return DropdownMenuItem(
+                        value: c.id,
+                        child: Text(
+                          c.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedCourseId = val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      // Section Dropdown
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: ['A', 'B', 'C', 'D', 'E', 'F'].contains(selectedSection.toUpperCase())
+                              ? selectedSection.toUpperCase()
+                              : 'A',
+                          decoration: InputDecoration(
+                            labelText: 'Section *',
+                            prefixIcon: const Icon(Icons.grid_view_rounded),
+                            filled: true,
+                            fillColor: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.cardDark
+                                : AppColors.cardLight,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: ['A', 'B', 'C', 'D', 'E', 'F'].map((sec) {
+                            return DropdownMenuItem(value: sec, child: Text('Sec $sec'));
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setDialogState(() => selectedSection = val);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      // Semester Dropdown
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: (selectedSemester >= 1 && selectedSemester <= 8) ? selectedSemester : 1,
+                          decoration: InputDecoration(
+                            labelText: 'Semester *',
+                            prefixIcon: const Icon(Icons.history_edu_outlined),
+                            filled: true,
+                            fillColor: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.cardDark
+                                : AppColors.cardLight,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          items: List.generate(8, (i) => i + 1).map((sem) {
+                            return DropdownMenuItem(value: sem, child: Text('Sem $sem'));
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) setDialogState(() => selectedSemester = val);
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 14),
                   AppTextField(
@@ -51,6 +158,14 @@ class StudentProfileTab extends ConsumerWidget {
                     hintText: '+91 98765 43210',
                     prefixIcon: Icons.phone_outlined,
                     keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 14),
+                  AppTextField(
+                    controller: bioCtrl,
+                    labelText: 'Bio / About',
+                    hintText: 'Share your academic interests...',
+                    prefixIcon: Icons.edit_note_outlined,
+                    maxLines: 2,
                   ),
                 ],
               ),
@@ -72,27 +187,37 @@ class StudentProfileTab extends ConsumerWidget {
                         final newName = nameCtrl.text.trim();
                         final newBio = bioCtrl.text.trim();
                         final newPhone = phoneCtrl.text.trim();
+                        final batchYear = DateTime.now().year;
+                        final newBatchId = 'batch_${selectedCourseId}_${batchYear}_${selectedSection.toLowerCase()}';
 
-                        await ref.read(firestoreServiceProvider).updateUserProfile(
-                              uid: user.id,
-                              name: newName,
-                              bio: newBio,
-                              phone: newPhone,
-                            );
-
-                        final updatedUser = user.copyWith(
-                          name: newName,
-                          bio: newBio,
-                          phone: newPhone,
-                          updatedAt: DateTime.now(),
+                        final req = ProfileUpdateRequestModel(
+                          id: const Uuid().v4(),
+                          studentUid: student.user.id,
+                          studentName: student.user.name,
+                          studentRollNo: student.studentId,
+                          currentData: {
+                            'name': student.user.name,
+                            'courseId': student.courseId,
+                            'batchId': student.batchId,
+                            'section': student.section,
+                            'semester': student.semester,
+                            'phone': student.user.phone ?? '',
+                            'bio': student.user.bio ?? '',
+                          },
+                          requestedData: {
+                            'name': newName,
+                            'courseId': selectedCourseId,
+                            'batchId': newBatchId,
+                            'section': selectedSection,
+                            'semester': selectedSemester,
+                            'phone': newPhone,
+                            'bio': newBio,
+                          },
+                          status: 'pending',
+                          createdAt: DateTime.now(),
                         );
 
-                        ref.read(authStatusProvider.notifier).updateLocalUser(updatedUser);
-                        ref.read(studentProfileProvider.notifier).updateUserData(
-                              name: newName,
-                              bio: newBio,
-                              phone: newPhone,
-                            );
+                        await ref.read(firestoreServiceProvider).createProfileUpdateRequest(req);
 
                         if (dialogCtx.mounted) {
                           Navigator.of(dialogCtx).pop();
@@ -101,7 +226,7 @@ class StudentProfileTab extends ConsumerWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Profile updated successfully!'),
+                              content: Text('Profile change request sent to faculty for approval!'),
                               backgroundColor: AppColors.success,
                             ),
                           );
@@ -113,7 +238,7 @@ class StudentProfileTab extends ConsumerWidget {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Failed to update profile: $e'),
+                              content: Text('Failed to submit profile update: $e'),
                               backgroundColor: AppColors.error,
                             ),
                           );
@@ -122,7 +247,7 @@ class StudentProfileTab extends ConsumerWidget {
                     },
               child: isSaving
                   ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Save Changes'),
+                  : const Text('Submit for Approval'),
             ),
           ],
         ),
@@ -212,11 +337,24 @@ class StudentProfileTab extends ConsumerWidget {
     final overall = ref.watch(overallAttendanceProvider);
     final streak = ref.watch(attendanceStreakProvider);
     final subjects = ref.watch(subjectAttendanceProvider);
+    final courses = ref.watch(allCoursesCatalogProvider);
+    final pendingReq = ref.watch(studentProfileRequestStreamProvider).valueOrNull;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (student == null) {
       return const LoadingState();
     }
+
+    final courseObj = courses.firstWhere(
+      (c) => c.id == student.courseId,
+      orElse: () => CourseModel(
+        id: student.courseId,
+        name: student.courseId.replaceAll('course-', '').toUpperCase(),
+        code: student.courseId.replaceAll('course-', '').toUpperCase(),
+        departmentId: '',
+        totalSemesters: 8,
+      ),
+    );
 
     final totalClasses = subjects.fold(0, (s, sa) => s + sa.totalClasses);
     final totalPresent = subjects.fold(0, (s, sa) => s + sa.present + sa.late);
@@ -261,6 +399,73 @@ class StudentProfileTab extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Pending Approval Alert Banner
+          if (pendingReq != null && pendingReq.isPending) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withAlpha(isDark ? 30 : 20),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.warning.withAlpha(100)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withAlpha(40),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.hourglass_top_rounded, color: AppColors.warning, size: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Profile Changes Pending Approval',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.warning),
+                            ),
+                            Text(
+                              'Submitted on ${DateFormat('d MMM, hh:mm a').format(pendingReq.createdAt)}',
+                              style: const TextStyle(fontSize: 11, color: AppColors.slate400),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withAlpha(40),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Awaiting Faculty',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.warning),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Requested: ${pendingReq.requestedName != student.user.name ? "Name: ${pendingReq.requestedName} • " : ""}'
+                    'Course: ${pendingReq.requestedCourseId.replaceAll("course-", "").toUpperCase()} • '
+                    'Sec ${pendingReq.requestedSection} • Sem ${pendingReq.requestedSemester}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // Profile Header Card
           AppCard(
             padding: const EdgeInsets.all(20),
@@ -294,9 +499,10 @@ class StudentProfileTab extends ConsumerWidget {
                               ),
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined, size: 18),
-                                onPressed: () => _showEditProfileDialog(context, ref, student.user),
+                                onPressed: () => _showEditProfileDialog(context, ref, student),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
+                                tooltip: 'Edit Profile & Academics',
                               ),
                             ],
                           ),
@@ -313,7 +519,7 @@ class StudentProfileTab extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              '${student.studentId} • Sem ${student.semester}',
+                              '${student.studentId} • Sem ${student.semester} • Sec ${student.section}',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -330,22 +536,54 @@ class StudentProfileTab extends ConsumerWidget {
                 const Divider(),
                 const SizedBox(height: 12),
 
-                // Academic details
-                Row(
+                // Academic details (Clean, responsive multi-card layout so course name is never hidden)
+                Column(
                   children: [
-                    Expanded(
-                      child: _ProfileInfoItem(
-                        label: 'Course',
-                        value: student.courseId.replaceAll('course-', '').toUpperCase(),
-                        icon: Icons.school_outlined,
-                      ),
+                    _ProfileInfoCard(
+                      label: 'Enrolled Course',
+                      value: courseObj.name,
+                      icon: Icons.school_outlined,
+                      fullWidth: true,
                     ),
-                    Expanded(
-                      child: _ProfileInfoItem(
-                        label: 'Batch',
-                        value: student.batchId.replaceAll('batch-', '').toUpperCase(),
-                        icon: Icons.group_outlined,
-                      ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProfileInfoCard(
+                            label: 'Batch & Section',
+                            value: 'Batch ${student.batchId.replaceAll('batch-', '').toUpperCase()} (Sec ${student.section})',
+                            icon: Icons.group_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _ProfileInfoCard(
+                            label: 'Current Semester',
+                            value: 'Semester ${student.semester}',
+                            icon: Icons.history_edu_outlined,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ProfileInfoCard(
+                            label: 'Phone Number',
+                            value: student.user.phone?.isNotEmpty == true ? student.user.phone! : 'Not provided',
+                            icon: Icons.phone_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _ProfileInfoCard(
+                            label: 'Enrollment Date',
+                            value: DateFormat('d MMM yyyy').format(student.enrollmentDate),
+                            icon: Icons.calendar_today_outlined,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -556,45 +794,60 @@ class StudentProfileTab extends ConsumerWidget {
   }
 }
 
-class _ProfileInfoItem extends StatelessWidget {
+class _ProfileInfoCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final bool fullWidth;
 
-  const _ProfileInfoItem({
+  const _ProfileInfoCard({
     required this.label,
     required this.value,
     required this.icon,
+    this.fullWidth = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppColors.primary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontSize: 10,
-                    ),
-              ),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: fullWidth ? double.infinity : null,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.elevatedDark : AppColors.slate100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontSize: 10,
+                        color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

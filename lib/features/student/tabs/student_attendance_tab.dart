@@ -219,28 +219,31 @@ class _StudentAttendanceTabState extends ConsumerState<StudentAttendanceTab> {
             const SizedBox(height: 12),
 
             // Filter Pills Row
-            Row(
-              children: [
-                ChoiceChip(
-                  label: Text('All Subjects (${subjects.length})'),
-                  selected: _filter == 'all',
-                  onSelected: (_) => setState(() => _filter = 'all'),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  avatar: const Icon(Icons.check_circle_outline, size: 16),
-                  label: Text('Safe (≥75%) (${subjects.where((s) => s.percentage >= 75).length})'),
-                  selected: _filter == 'safe',
-                  onSelected: (_) => setState(() => _filter = 'safe'),
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  avatar: const Icon(Icons.warning_amber_rounded, size: 16),
-                  label: Text('At Risk (<75%) (${subjects.where((s) => s.percentage < 75).length})'),
-                  selected: _filter == 'risk',
-                  onSelected: (_) => setState(() => _filter = 'risk'),
-                ),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ChoiceChip(
+                    label: Text('All Subjects (${subjects.length})'),
+                    selected: _filter == 'all',
+                    onSelected: (_) => setState(() => _filter = 'all'),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    avatar: const Icon(Icons.check_circle_outline, size: 16),
+                    label: Text('Safe (≥75%) (${subjects.where((s) => s.percentage >= 75).length})'),
+                    selected: _filter == 'safe',
+                    onSelected: (_) => setState(() => _filter = 'safe'),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    avatar: const Icon(Icons.warning_amber_rounded, size: 16),
+                    label: Text('At Risk (<75%) (${subjects.where((s) => s.percentage < 75).length})'),
+                    selected: _filter == 'risk',
+                    onSelected: (_) => setState(() => _filter = 'risk'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
