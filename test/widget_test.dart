@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/config/theme/app_theme.dart';
 import 'package:presenza/core/constants/academic_defaults.dart';
+import 'package:presenza/core/enums/enums.dart';
 import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/activity_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
@@ -451,6 +452,126 @@ void main() {
 
       // Verify Generate Button
       expect(find.text('Generate Session QR Code'), findsOneWidget);
+    });
+
+    testWidgets('Renders TeacherAttendanceTab cleanly on ultra-narrow 320px screen', (tester) async {
+      tester.view.physicalSize = const Size(320, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockTeacher = TeacherModel(
+        user: UserModel(
+          id: 'teacher-uid-narrow',
+          email: 'teacher@presenza.edu',
+          name: 'Prof. Narrow Test',
+          role: UserRole.teacher,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+        employeeId: 'EMP002',
+        departmentId: 'dept-cse',
+        subjectIds: ['sub-cs401'],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            firestoreServiceProvider.overrideWithValue(MockFirestoreService()),
+            teacherProfileProvider.overrideWith((ref) => TeacherProfileNotifier(ref, mockTeacher.user)..state = mockTeacher),
+            batchesProvider.overrideWith((ref) => Stream.value([])),
+            teacherSubjectsProvider.overrideWith((ref) => [
+              const SubjectModel(
+                id: 'sub-cs401',
+                name: 'Data Structures & Algorithms',
+                code: 'CS401',
+                courseId: 'course-btech-cse',
+                semester: 4,
+                credits: 4,
+                teacherId: 'teacher-uid-narrow',
+              ),
+            ]),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: TeacherAttendanceTab(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start Class Attendance'), findsOneWidget);
+      expect(find.text('Generate Session QR Code'), findsOneWidget);
+    });
+  });
+
+  group('Session Lifecycle, Expiry Clamping & Idempotency Unit Tests', () {
+    test('AttendanceSessionStatus flags correctly determine accepting state', () {
+      expect(AttendanceSessionStatus.active.isAcceptingAttendance, isTrue);
+      expect(AttendanceSessionStatus.expired.isAcceptingAttendance, isFalse);
+      expect(AttendanceSessionStatus.closed.isAcceptingAttendance, isFalse);
+      expect(AttendanceSessionStatus.scheduled.isAcceptingAttendance, isFalse);
+
+      expect(AttendanceSessionStatus.active.displayName, equals('Live'));
+      expect(AttendanceSessionStatus.expired.displayName, equals('Expired'));
+      expect(AttendanceSessionStatus.closed.displayName, equals('Closed'));
+    });
+
+    test('AttendanceSessionModel accurately reports expiry and clamps remaining duration to zero', () {
+      final now = DateTime.now();
+      final activeSession = AttendanceSessionModel(
+        id: 'sess-active-1',
+        teacherId: 'teacher-1',
+        teacherName: 'Prof. Turing',
+        courseId: 'course-btech-cse',
+        batchId: 'batch-2024-a',
+        subjectId: 'sub-1',
+        subjectName: 'Algorithms',
+        room: 'Lab 3',
+        date: now,
+        startTime: now.subtract(const Duration(minutes: 5)),
+        endTime: now.add(const Duration(minutes: 10)),
+        isActive: true,
+        qrToken: 'TEST_QR_ACTIVE',
+        createdAt: now.subtract(const Duration(minutes: 5)),
+      );
+
+      expect(activeSession.isExpired, isFalse);
+      expect(activeSession.status, equals(AttendanceSessionStatus.active));
+      expect(activeSession.remainingSeconds, greaterThan(0));
+
+      final expiredSession = AttendanceSessionModel(
+        id: 'sess-expired-1',
+        teacherId: 'teacher-1',
+        teacherName: 'Prof. Turing',
+        courseId: 'course-btech-cse',
+        batchId: 'batch-2024-a',
+        subjectId: 'sub-1',
+        subjectName: 'Algorithms',
+        room: 'Lab 3',
+        date: now,
+        startTime: now.subtract(const Duration(minutes: 20)),
+        endTime: now.subtract(const Duration(minutes: 5)),
+        isActive: true,
+        qrToken: 'TEST_QR_EXPIRED',
+        createdAt: now.subtract(const Duration(minutes: 20)),
+      );
+
+      expect(expiredSession.isExpired, isTrue);
+      expect(expiredSession.status, equals(AttendanceSessionStatus.expired));
+      expect(expiredSession.remainingSeconds, equals(0));
+      expect(expiredSession.remainingDuration, equals(Duration.zero));
+
+      final closedSession = activeSession.copyWith(isActive: false);
+      expect(closedSession.status, equals(AttendanceSessionStatus.closed));
+    });
+
+    test('Deterministic record ID guarantees idempotency format', () {
+      const sessionId = 'session_2026_09_07_001';
+      const studentUid = 'student_uid_xyz123';
+      final deterministicRecordId = '${sessionId}_$studentUid';
+
+      expect(deterministicRecordId, equals('session_2026_09_07_001_student_uid_xyz123'));
     });
   });
 }

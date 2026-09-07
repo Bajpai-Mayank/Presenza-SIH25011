@@ -13,6 +13,7 @@ import 'package:presenza/data/models/auth_state.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:presenza/data/services/firestore_service.dart';
 import 'package:presenza/data/services/auth_service.dart';
+import 'package:presenza/data/services/notification_service.dart';
 import 'package:presenza/core/constants/academic_defaults.dart';
 import 'package:uuid/uuid.dart';
 
@@ -137,6 +138,7 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
           
           if (userModel != null) {
             state = AuthState.authenticated(userModel);
+            NotificationService().syncUserToken(user.uid);
             _monitorSession(firestoreService);
           } else {
             // Auto-provision user model for existing Firebase Auth users who don't have Firestore doc yet
@@ -156,11 +158,13 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
                 await firestoreService.saveStudentProfile(student);
               }
               state = AuthState.authenticated(synthesizedUser);
+              NotificationService().syncUserToken(user.uid);
               _monitorSession(firestoreService);
             } catch (saveError) {
               debugPrint('Auto-profile save fallback error: $saveError');
               // Maintain local synthesized authentication instead of locking user out
               state = AuthState.authenticated(synthesizedUser);
+              NotificationService().syncUserToken(user.uid);
             }
           }
         } catch (e) {
@@ -636,14 +640,48 @@ final notificationsStreamProvider =
 final notificationsProvider =
     StateNotifierProvider<NotificationsNotifier, List<NotificationModel>>(
         (ref) {
-  final streamData = ref.watch(notificationsStreamProvider);
-  return NotificationsNotifier(ref, streamData.valueOrNull ?? []);
+  final initialData = ref.watch(notificationsStreamProvider).valueOrNull ?? [];
+  final notifier = NotificationsNotifier(ref, initialData);
+  ref.listen<AsyncValue<List<NotificationModel>>>(
+    notificationsStreamProvider,
+    (_, next) {
+      if (next.hasValue && next.value != null) {
+        notifier.updateFromStream(next.value!);
+      }
+    },
+  );
+  return notifier;
 });
 
 class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
   final Ref _ref;
+  final Set<String> _seenNotificationIds = {};
+
   NotificationsNotifier(this._ref, List<NotificationModel> initial)
-      : super(initial);
+      : super(initial) {
+    for (final n in initial) {
+      _seenNotificationIds.add(n.id);
+    }
+  }
+
+  void updateFromStream(List<NotificationModel> incoming) {
+    for (final n in incoming) {
+      if (!_seenNotificationIds.contains(n.id)) {
+        _seenNotificationIds.add(n.id);
+        if (!n.isRead) {
+          final age = DateTime.now().difference(n.createdAt);
+          if (age.inMinutes < 5) {
+            NotificationService().showInAppNotification(
+              title: n.title,
+              body: n.body,
+              data: {'id': n.id, 'type': n.type.name},
+            );
+          }
+        }
+      }
+    }
+    state = incoming;
+  }
 
   int get unreadCount => state.where((n) => !n.isRead).length;
 
@@ -785,6 +823,17 @@ class AttendanceSessionNotifier
     }
   }
 
+  void markExpired() {
+    if (state != null) {
+      state = state!.copyWith(isActive: false);
+    }
+  }
+
+  void clearSession() {
+    state = null;
+    _liveCount = 0;
+  }
+
   void incrementLiveCount() {
     _liveCount++;
     if (state != null) {
@@ -792,6 +841,14 @@ class AttendanceSessionNotifier
     }
   }
 }
+
+final teacherActiveSessionStreamProvider =
+    StreamProvider<AttendanceSessionModel?>((ref) {
+  final teacher = ref.watch(teacherProfileProvider);
+  if (teacher == null) return Stream.value(null);
+  final firestoreService = ref.watch(firestoreServiceProvider);
+  return firestoreService.streamActiveTeacherSession(teacher.user.id);
+});
 
 final currentUserProvider = authStateProvider;
 

@@ -141,69 +141,85 @@ class StudentHomeTab extends ConsumerWidget {
             // ── Overall Attendance Summary Card ─────────────────────────
             AppCard(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 360;
+                  final ringWidget = Center(
+                    child: AttendanceRing(
+                      percentage: overallAttendance,
+                      size: isNarrow ? 96 : 110,
+                      strokeWidth: isNarrow ? 8 : 9,
+                    ),
+                  );
+
+                  final metricsWidget = Column(
+                    crossAxisAlignment: isNarrow ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                     children: [
-                      AttendanceRing(
-                        percentage: overallAttendance,
-                        size: 110,
-                        strokeWidth: 9,
+                      Text(
+                        overallAttendance >= 75.0 ? 'Attendance On Track' : 'Attendance At Risk',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: overallAttendance >= 75.0
+                                  ? AppColors.success
+                                  : AppColors.error,
+                            ),
+                        textAlign: isNarrow ? TextAlign.center : TextAlign.start,
                       ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              overallAttendance >= 75.0 ? 'Attendance On Track' : 'Attendance At Risk',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: overallAttendance >= 75.0
-                                        ? AppColors.success
-                                        : AppColors.error,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              overallAttendance >= 75.0
-                                  ? 'You meet the minimum 75% requirement across your courses.'
-                                  : 'Overall attendance is below the 75% mandatory threshold.',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _AttendanceMetric(
-                                  label: 'Present',
-                                  count: totalPresent,
-                                  color: AppColors.success,
-                                ),
-                                _AttendanceMetric(
-                                  label: 'Absent',
-                                  count: totalAbsent,
-                                  color: AppColors.error,
-                                ),
-                                _AttendanceMetric(
-                                  label: 'Late',
-                                  count: totalLate,
-                                  color: AppColors.warning,
-                                ),
-                                _AttendanceMetric(
-                                  label: 'Total',
-                                  count: totalClasses,
-                                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        overallAttendance >= 75.0
+                            ? 'You meet the minimum 75% requirement across your courses.'
+                            : 'Overall attendance is below the 75% mandatory threshold.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: isNarrow ? TextAlign.center : TextAlign.start,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: isNarrow ? MainAxisAlignment.spaceAround : MainAxisAlignment.spaceBetween,
+                        children: [
+                          _AttendanceMetric(
+                            label: 'Present',
+                            count: totalPresent,
+                            color: AppColors.success,
+                          ),
+                          _AttendanceMetric(
+                            label: 'Absent',
+                            count: totalAbsent,
+                            color: AppColors.error,
+                          ),
+                          _AttendanceMetric(
+                            label: 'Late',
+                            count: totalLate,
+                            color: AppColors.warning,
+                          ),
+                          _AttendanceMetric(
+                            label: 'Total',
+                            count: totalClasses,
+                            color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
+                  );
+
+                  if (isNarrow) {
+                    return Column(
+                      children: [
+                        ringWidget,
+                        const SizedBox(height: 16),
+                        metricsWidget,
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      ringWidget,
+                      const SizedBox(width: 20),
+                      Expanded(child: metricsWidget),
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 20),

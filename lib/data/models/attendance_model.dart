@@ -127,7 +127,27 @@ class AttendanceSessionModel {
         createdAt: createdAt,
       );
 
-  bool get isExpired => DateTime.now().isAfter(endTime);
+  /// Conceptual session lifecycle status: SCHEDULED, ACTIVE, EXPIRED, CLOSED.
+  AttendanceSessionStatus get status {
+    if (!isActive) return AttendanceSessionStatus.closed;
+    final now = DateTime.now();
+    if (now.isBefore(startTime)) return AttendanceSessionStatus.scheduled;
+    if (now.isAfter(endTime)) return AttendanceSessionStatus.expired;
+    return AttendanceSessionStatus.active;
+  }
+
+  /// Whether the session is expired or closed (cannot accept attendance).
+  bool get isExpired => !isActive || DateTime.now().isAfter(endTime);
+
+  /// Safe remaining duration until session expiry. Clamped to zero if expired.
+  Duration get remainingDuration {
+    if (!isActive) return Duration.zero;
+    final diff = endTime.difference(DateTime.now());
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  /// Remaining seconds until session expiry, guaranteed >= 0.
+  int get remainingSeconds => remainingDuration.inSeconds;
 }
 
 /// A single student's attendance record for a session.

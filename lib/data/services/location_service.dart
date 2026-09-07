@@ -78,7 +78,7 @@ class LocationService {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       return const LocationVerificationResult.failure(
-        'Location services (GPS) are disabled on your device.',
+        'Location services are disabled. Please enable GPS to continue.',
       );
     }
 
@@ -87,7 +87,7 @@ class LocationService {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
         return const LocationVerificationResult.failure(
-          'Location permission was denied. Location is required to verify attendance.',
+          'Location permission is required for attendance verification.',
         );
       }
     }
@@ -109,7 +109,7 @@ class LocationService {
       // Security: Reject mocked locations (fake GPS apps)
       if (position.isMocked) {
         return const LocationVerificationResult.failure(
-          'Mock location detected. Please disable fake GPS applications.',
+          'Mock/fake location detected. Please disable mock location and try again.',
         );
       }
 
@@ -145,7 +145,7 @@ class LocationService {
         return LocationVerificationResult(
           isVerified: false,
           errorMessage:
-              'You are ${distance.toStringAsFixed(0)}m away from class (maximum allowed: ${allowedRadiusMeters.toStringAsFixed(0)}m).',
+              'You are approximately ${distance.toStringAsFixed(0)}m away (maximum allowed: ${allowedRadiusMeters.toStringAsFixed(0)}m).',
           latitude: position.latitude,
           longitude: position.longitude,
           distanceMeters: distance,

@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/security/attendance_security_controller.dart';
@@ -24,6 +26,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
   String _statusMessage = 'Scan the faculty QR code';
   String _detailMessage = 'Align the QR code within the highlighted viewfinder. Use zoom if scanning from a distance.';
   bool _isSuccess = false;
+  bool _isExpiredError = false;
 
   final FirestoreService _firestoreService = FirestoreService();
   final LocationService _locationService = LocationService();
@@ -94,9 +97,21 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
 
   Future<void> _toggleTorch() async {
     try {
-      await _cameraController?.toggleTorch();
-      setState(() => _isTorchOn = !_isTorchOn);
-    } catch (_) {}
+      if (_cameraController != null) {
+        await _cameraController!.toggleTorch();
+        setState(() => _isTorchOn = !_isTorchOn);
+      }
+    } catch (e) {
+      debugPrint('Torch not supported or hardware error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Flash/torch is not available on this device lens.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _processQrCode(String code) async {
@@ -129,13 +144,13 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
         return;
       }
 
-      if (DateTime.now().isAfter(session.endTime)) {
-        _showFailure('This attendance session has expired.');
+      if (session.isExpired || DateTime.now().isAfter(session.endTime)) {
+        _showExpired();
         return;
       }
 
       if (session.courseId != student.courseId || session.batchId != student.batchId) {
-        _showFailure('This session is for a different degree program or section.');
+        _showFailure('This attendance session is not assigned to your batch/section.');
         return;
       }
 
@@ -182,7 +197,14 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
       );
 
       if (!result.success) {
-        _showFailure(result.errorMessage ?? 'Failed to record attendance.');
+        final err = result.errorMessage ?? '';
+        if (err.contains('already marked') || err.contains('already recorded')) {
+          _showFailure('Attendance already recorded for this session.');
+        } else if (err.contains('expired')) {
+          _showExpired();
+        } else {
+          _showFailure(err.isNotEmpty ? err : 'Failed to record attendance.');
+        }
         return;
       }
 
@@ -190,6 +212,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
         _scanComplete = true;
         _isProcessing = false;
         _isSuccess = true;
+        _isExpiredError = false;
         _statusMessage = 'Attendance Confirmed!';
         _detailMessage = 'Your attendance for ${session.subjectName ?? "class"} has been marked successfully.';
       });
@@ -199,10 +222,26 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
     }
   }
 
+  void _showExpired() {
+    if (!mounted) return;
+    setState(() {
+      _isProcessing = false;
+      _scanComplete = false;
+      _isSuccess = false;
+      _isExpiredError = true;
+      _statusMessage = 'QR CODE EXPIRED';
+      _detailMessage =
+          'This attendance session has ended.\n\nPlease ask your faculty to generate a new attendance QR code.';
+    });
+  }
+
   void _showFailure(String errorMsg) {
     if (!mounted) return;
     setState(() {
       _isProcessing = false;
+      _scanComplete = false;
+      _isSuccess = false;
+      _isExpiredError = false;
       _statusMessage = 'Attendance Failed';
       _detailMessage = errorMsg;
     });
@@ -406,8 +445,38 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
                 ),
                 const SizedBox(height: 16),
 
-                // ── Action Buttons (Retry / Done / Return) ──────────────────
-                if (_scanComplete || _statusMessage.contains('Failed')) ...[
+                // ── Action Buttons (Retry / Done / Return / Expired) ───────
+                if (_isExpiredError) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppButton.primary(
+                          label: 'Scan New QR',
+                          icon: Icons.qr_code_scanner_rounded,
+                          onPressed: () {
+                            setState(() {
+                              _statusMessage = 'Scan the faculty QR code';
+                              _detailMessage = 'Align the QR code within the highlighted viewfinder.';
+                              _isProcessing = false;
+                              _scanComplete = false;
+                              _isSuccess = false;
+                              _isExpiredError = false;
+                            });
+                            _cameraController?.start();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: AppButton.outlined(
+                          label: 'Contact Faculty',
+                          icon: Icons.help_outline_rounded,
+                          onPressed: () => context.push('/help'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (_scanComplete || _statusMessage.contains('Failed')) ...[
                   Row(
                     children: [
                       if (_statusMessage.contains('Failed')) ...[
@@ -421,6 +490,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
                                 _isProcessing = false;
                                 _scanComplete = false;
                                 _isSuccess = false;
+                                _isExpiredError = false;
                               });
                               _cameraController?.start();
                             },
@@ -440,6 +510,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
                               _isProcessing = false;
                               _scanComplete = false;
                               _isSuccess = false;
+                              _isExpiredError = false;
                             });
                             _cameraController?.start();
                           },
@@ -680,6 +751,60 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen>
           scale: 1.0 + (_zoomScale * 1.5),
           child: MobileScanner(
             controller: _cameraController!,
+            errorBuilder: (context, error) {
+              return Container(
+                color: isDark ? AppColors.surfaceDark : const Color(0xFF1E293B),
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.no_photography_outlined, color: Colors.amber, size: 36),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Camera Access Required',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Presenza needs camera access to scan attendance QR codes.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () {
+                              _cameraController?.start();
+                            },
+                            child: const Text('Allow Camera', style: TextStyle(fontSize: 12)),
+                          ),
+                          const SizedBox(width: 8),
+                          OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white38),
+                            ),
+                            onPressed: () {
+                              Geolocator.openAppSettings();
+                            },
+                            child: const Text('Open Settings', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
             onDetect: (capture) {
               final barcodes = capture.barcodes;
               for (final barcode in barcodes) {

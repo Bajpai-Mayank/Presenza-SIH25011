@@ -171,3 +171,26 @@ enum NotificationType {
     );
   }
 }
+
+/// Conceptual lifecycle state of an attendance session.
+enum AttendanceSessionStatus {
+  scheduled,
+  active,
+  expired,
+  closed;
+
+  String get displayName {
+    switch (this) {
+      case AttendanceSessionStatus.scheduled:
+        return 'Scheduled';
+      case AttendanceSessionStatus.active:
+        return 'Live';
+      case AttendanceSessionStatus.expired:
+        return 'Expired';
+      case AttendanceSessionStatus.closed:
+        return 'Closed';
+    }
+  }
+
+  bool get isAcceptingAttendance => this == AttendanceSessionStatus.active;
+}

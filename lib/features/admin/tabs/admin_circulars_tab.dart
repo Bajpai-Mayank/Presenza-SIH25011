@@ -117,34 +117,48 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
                   ),
                   const SizedBox(height: 14),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<ActivityCategory>(
-                          initialValue: selectedCategory,
-                          decoration: const InputDecoration(labelText: 'Category'),
-                          items: ActivityCategory.values.map((cat) {
-                            return DropdownMenuItem(value: cat, child: Text(cat.label));
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) setModalState(() => selectedCategory = val);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<CircularPriority>(
-                          initialValue: selectedPriority,
-                          decoration: const InputDecoration(labelText: 'Priority'),
-                          items: CircularPriority.values.map((p) {
-                            return DropdownMenuItem(value: p, child: Text(p.displayName));
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) setModalState(() => selectedPriority = val);
-                          },
-                        ),
-                      ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 360;
+                      final catField = DropdownButtonFormField<ActivityCategory>(
+                        initialValue: selectedCategory,
+                        decoration: const InputDecoration(labelText: 'Category'),
+                        items: ActivityCategory.values.map((cat) {
+                          return DropdownMenuItem(value: cat, child: Text(cat.label, overflow: TextOverflow.ellipsis));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setModalState(() => selectedCategory = val);
+                        },
+                      );
+                      final priorityField = DropdownButtonFormField<CircularPriority>(
+                        initialValue: selectedPriority,
+                        decoration: const InputDecoration(labelText: 'Priority'),
+                        items: CircularPriority.values.map((p) {
+                          return DropdownMenuItem(value: p, child: Text(p.displayName, overflow: TextOverflow.ellipsis));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setModalState(() => selectedPriority = val);
+                        },
+                      );
+
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            catField,
+                            const SizedBox(height: 12),
+                            priorityField,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: catField),
+                          const SizedBox(width: 12),
+                          Expanded(child: priorityField),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 14),
 

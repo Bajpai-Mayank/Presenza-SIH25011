@@ -1,7 +1,7 @@
 // =========================================================================
 // PRESENZA CLOUD FIRESTORE SECURITY RULES
 // Rules Version: 2
-// Revision: 2.1 (Updated August 2026 - Production Architecture)
+// Revision: 2.1 (Updated September 2026 - Production Architecture)
 // =========================================================================
 
 rules_version = '2';
@@ -101,7 +101,10 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn() && (
         (request.resource.data.studentId == request.auth.uid && 
-         id == request.resource.data.attendanceSessionId + '_' + request.auth.uid) ||
+         id == request.resource.data.attendanceSessionId + '_' + request.auth.uid &&
+         exists(/databases/$(database)/documents/sessions/$(request.resource.data.attendanceSessionId)) &&
+         get(/databases/$(database)/documents/sessions/$(request.resource.data.attendanceSessionId)).data.isActive == true &&
+         request.time <= get(/databases/$(database)/documents/sessions/$(request.resource.data.attendanceSessionId)).data.endTime) ||
         isTeacherOrAdmin()
       );
       allow update, delete: if isTeacherOrAdmin();

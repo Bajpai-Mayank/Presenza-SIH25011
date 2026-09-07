@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -17,6 +19,7 @@ class NotificationService {
 
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  StreamSubscription<String>? _tokenRefreshSub;
   
   bool _isInitialized = false;
 
@@ -58,8 +61,8 @@ class NotificationService {
 
       // Create high importance channel for Android
       const AndroidNotificationChannel channel = AndroidNotificationChannel(
-        'high_importance_channel', // id
-        'High Importance Notifications', // name
+        'presenza_high_importance_channel', // id
+        'Presenza Notifications', // name
         description: 'This channel is used for important notifications.', // description
         importance: Importance.max,
       );
@@ -101,6 +104,85 @@ class NotificationService {
     }
   }
 
+  /// Persist the device FCM token to the user document in Firestore.
+  Future<void> syncUserToken(String uid) async {
+    if (kIsWeb) return;
+    try {
+      final token = await getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'fcmToken': token,
+          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        debugPrint('FCM Token synced for user $uid');
+      }
+
+      // Listen for token rotations
+      await _tokenRefreshSub?.cancel();
+      _tokenRefreshSub = _fcm.onTokenRefresh.listen((newToken) async {
+        try {
+          await FirebaseFirestore.instance.collection('users').doc(uid).set({
+            'fcmToken': newToken,
+            'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          debugPrint('FCM Token refreshed and synced for user $uid');
+        } catch (e) {
+          debugPrint('Error syncing refreshed FCM token: $e');
+        }
+      });
+
+      // Subscribe to general announcements
+      await _fcm.subscribeToTopic('all_announcements');
+    } catch (e) {
+      debugPrint('Error syncing user FCM token: $e');
+    }
+  }
+
+  /// Subscribe user to a specific batch topic
+  Future<void> subscribeToBatchTopic(String batchId) async {
+    if (kIsWeb) return;
+    try {
+      final sanitized = batchId.replaceAll(RegExp(r'[^a-zA-Z0-9-_.~%]'), '_');
+      await _fcm.subscribeToTopic('batch_$sanitized');
+    } catch (e) {
+      debugPrint('Error subscribing to batch topic: $e');
+    }
+  }
+
+  /// Show an in-app local notification banner/heads-up
+  Future<void> showInAppNotification({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    if (kIsWeb) return;
+    try {
+      await _localNotifications.show(
+        id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        title: title,
+        body: body,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'presenza_high_importance_channel',
+            'Presenza Notifications',
+            channelDescription: 'This channel is used for important notifications.',
+            icon: '@mipmap/ic_launcher',
+            importance: Importance.max,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        payload: data != null ? jsonEncode(data) : null,
+      );
+    } catch (e) {
+      debugPrint('Error displaying in-app notification: $e');
+    }
+  }
+
   void _handleForegroundMessage(RemoteMessage message) {
     debugPrint('Received foreground message: ${message.notification?.title}');
     final notification = message.notification;
@@ -111,16 +193,16 @@ class NotificationService {
         id: notification.hashCode,
         title: notification.title,
         body: notification.body,
-        notificationDetails: NotificationDetails(
+        notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
-            'high_importance_channel',
-            'High Importance Notifications',
+            'presenza_high_importance_channel',
+            'Presenza Notifications',
             channelDescription: 'This channel is used for important notifications.',
             icon: '@mipmap/ic_launcher',
             importance: Importance.max,
             priority: Priority.high,
           ),
-          iOS: const DarwinNotificationDetails(
+          iOS: DarwinNotificationDetails(
             presentAlert: true,
             presentBadge: true,
             presentSound: true,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -40,14 +41,45 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
   final FaceVerificationMode _faceMode = FaceVerificationMode.disabled;
   bool _isCreatingSession = false;
 
+  Timer? _countdownTimer;
+
   @override
   void initState() {
     super.initState();
     ref.read(attendanceSecurityProvider.notifier).enableSecureMode();
+    _initSessionCountdown();
+  }
+
+  void _initSessionCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final session = ref.read(activeAttendanceSessionProvider);
+      if (session != null) {
+        if (session.isExpired && session.isActive) {
+          ref.read(activeAttendanceSessionProvider.notifier).markExpired();
+          ref.read(firestoreServiceProvider).closeAttendanceSession(session.id);
+        }
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    });
+  }
+
+  String _formatRemainingTime(Duration duration) {
+    if (duration.isNegative || duration.inSeconds <= 0) return '00:00';
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    if (duration.inHours > 0) {
+      final hours = duration.inHours.toString().padLeft(2, '0');
+      return '$hours:$minutes:$seconds';
+    }
+    return '$minutes:$seconds';
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     try {
       ref.read(attendanceSecurityProvider.notifier).disableSecureMode();
     } catch (_) {}
@@ -235,6 +267,7 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
 
     await ref.read(firestoreServiceProvider).createAttendanceSession(session);
     ref.read(activeAttendanceSessionProvider.notifier).startSession(session);
+    _initSessionCountdown();
 
     if (mounted) {
       setState(() => _isCreatingSession = false);
@@ -248,6 +281,7 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
   }
 
   void _closeActiveSession(String sessionId) async {
+    _countdownTimer?.cancel();
     await ref.read(firestoreServiceProvider).closeAttendanceSession(sessionId);
     ref.read(activeAttendanceSessionProvider.notifier).closeSession();
     if (mounted) {
@@ -257,9 +291,19 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
     }
   }
 
+  void _dismissActiveSession() {
+    _countdownTimer?.cancel();
+    ref.read(activeAttendanceSessionProvider.notifier).clearSession();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final activeSession = ref.watch(activeAttendanceSessionProvider);
+    final localSession = ref.watch(activeAttendanceSessionProvider);
+    final streamedSession = ref.watch(teacherActiveSessionStreamProvider).valueOrNull;
+    final activeSession = localSession ?? (streamedSession != null && !streamedSession.isExpired ? streamedSession : null);
     final courses = ref.watch(allCoursesCatalogProvider);
     final subjects = ref.watch(teacherSubjectsProvider);
     final batches = ref.watch(batchesProvider).valueOrNull ?? [];
@@ -282,8 +326,8 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Active Session Display (If Live) ────────────────────────
-              if (activeSession != null && activeSession.isActive) ...[
+              // ── Active Session Display (If Live or Expired) ─────────────
+              if (activeSession != null) ...[
                 _buildLiveSessionCard(context, activeSession, isDark),
                 const SizedBox(height: 24),
               ],
@@ -1168,55 +1212,185 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
 
   Widget _buildLiveSessionCard(
       BuildContext context, AttendanceSessionModel session, bool isDark) {
+    final isExpired = session.isExpired;
+
     return AppCard(
-      borderColor: AppColors.success,
+      borderColor: isExpired ? AppColors.warning : AppColors.success,
       borderWidth: 2,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          Row(
+          // Header Status Badge and Timer
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: AppColors.success,
-                  shape: BoxShape.circle,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: isExpired ? AppColors.warning : AppColors.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isExpired ? 'ATTENDANCE SESSION EXPIRED' : 'LIVE ATTENDANCE SESSION',
+                    style: TextStyle(
+                      color: isExpired ? AppColors.warning : AppColors.success,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              if (!isExpired)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withAlpha(25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.success.withAlpha(80)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.timer_outlined, size: 14, color: AppColors.success),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Remaining: ${_formatRemainingTime(session.remainingDuration)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.success,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withAlpha(25),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.warning.withAlpha(80)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.timer_off_outlined, size: 14, color: AppColors.warning),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Ended at ${DateFormat('hh:mm:ss a').format(session.endTime)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'LIVE ATTENDANCE SESSION',
-                style: TextStyle(
-                  color: AppColors.success,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'Expires ${DateFormat('hh:mm:ss a').format(session.endTime)}',
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
             ],
           ),
           const SizedBox(height: 16),
 
-          // QR Code in White Container for contrast
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.slate300),
+          if (isExpired) ...[
+            // Banner explaining session is expired
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.warning.withAlpha(20) : const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.warning.withAlpha(80)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Attendance session expired',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: isDark ? Colors.amber[200] : const Color(0xFF92400E),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'This attendance session is no longer accepting attendance. Scanned QR codes will be rejected by the server.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white70 : const Color(0xFF78350F),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: QrImageView(
-              data: session.id,
-              version: QrVersions.auto,
-              size: 200,
-              backgroundColor: Colors.white,
-            ),
+            const SizedBox(height: 16),
+          ],
+
+          // QR Code View (Active or Expired Overlay)
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isExpired ? AppColors.slate300 : AppColors.slate300),
+                ),
+                child: Opacity(
+                  opacity: isExpired ? 0.2 : 1.0,
+                  child: QrImageView(
+                    data: session.id,
+                    version: QrVersions.auto,
+                    size: 200,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+              ),
+              if (isExpired)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(200),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_clock_rounded, color: Colors.amber, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'QR Inactive / Expired',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
 
@@ -1296,11 +1470,18 @@ class _TeacherAttendanceTabState extends ConsumerState<TeacherAttendanceTab> {
           ),
           const SizedBox(height: 12),
 
-          AppButton.outlined(
-            label: 'Close Attendance Session',
-            icon: Icons.stop_circle_outlined,
-            onPressed: () => _closeActiveSession(session.id),
-          ),
+          if (!isExpired)
+            AppButton.outlined(
+              label: 'Close Attendance Session',
+              icon: Icons.stop_circle_outlined,
+              onPressed: () => _closeActiveSession(session.id),
+            )
+          else
+            AppButton.primary(
+              label: 'Dismiss & Create New Session',
+              icon: Icons.refresh_rounded,
+              onPressed: _dismissActiveSession,
+            ),
         ],
       ),
     );

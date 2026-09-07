@@ -888,26 +888,23 @@ class FirestoreService {
         if (session.courseId != studentCourseId ||
             session.batchId != studentBatchId) {
           return const AttendanceResult.failure(
-            'This session is for another class/batch.',
+            'This attendance session is not assigned to your batch/section.',
           );
         }
 
-        // 5. Check for duplicate attendance
-        final existingRecords = await _db
-            .collection('attendance_records')
-            .where('attendanceSessionId', isEqualTo: sessionId)
-            .where('studentId', isEqualTo: studentUid)
-            .limit(1)
-            .get();
-        if (existingRecords.docs.isNotEmpty) {
+        // 5. Check for duplicate attendance atomically via transaction get
+        final recordId = '${sessionId}_$studentUid'; // Deterministic Idempotency
+        final existingDoc = await txn.get(
+          _db.collection('attendance_records').doc(recordId),
+        );
+        if (existingDoc.exists) {
           return const AttendanceResult.failure(
-            'You have already marked attendance for this class.',
+            'Attendance already recorded for this session.',
           );
         }
 
         // 6. Create the attendance record
         final now = DateTime.now();
-        final recordId = '${sessionId}_$studentUid'; // Deterministic Idempotency
         final record = AttendanceRecordModel(
           id: recordId,
           studentId: studentUid,
