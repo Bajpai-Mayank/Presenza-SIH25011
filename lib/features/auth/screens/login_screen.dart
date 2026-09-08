@@ -154,10 +154,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           children: [
             WavyHeader(
               title: 'PRESENZA',
-              logo: Icon(
-                Icons.school_rounded,
-                size: 64,
-                color: Colors.white,
+              logo: Container(
+                width: 76,
+                height: 76,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             Center(

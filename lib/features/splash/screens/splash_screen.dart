@@ -192,8 +192,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       child: Container(
                         width: 110,
                         height: 110,
+                        padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
+                          color: isDark ? const Color(0xFF0F172A) : Colors.white,
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFF4A72FF).withValues(alpha: isDark ? 0.35 : 0.2),
@@ -203,11 +205,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                             ),
                           ],
                         ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            'assets/images/icon.png',
-                            fit: BoxFit.cover,
-                          ),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),

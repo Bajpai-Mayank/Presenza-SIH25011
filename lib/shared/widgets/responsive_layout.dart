@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/shared/widgets/animated_bottom_navbar.dart';
 
 /// Navigation item definition for responsive shells.
@@ -41,7 +40,6 @@ class ResponsiveShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.of(context).size.width >= 768;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (isDesktop) {
       return Scaffold(
@@ -58,10 +56,11 @@ class ResponsiveShell extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.school_rounded,
-                      color: isDark ? AppColors.primaryDark : AppColors.primary,
-                      size: 28,
+                    Image.asset(
+                      'assets/images/logo.png',
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.contain,
                     ),
                     const SizedBox(width: 8),
                     Text(
