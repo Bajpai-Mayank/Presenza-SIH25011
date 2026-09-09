@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' show User;
+import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/user_model.dart';
 import 'package:presenza/data/models/attendance_model.dart';
 import 'package:presenza/data/models/app_models.dart';
@@ -29,9 +31,12 @@ class AttendanceResult {
 /// Provides all Cloud Firestore operations for Presenza.
 /// Acts as the primary backend implementation for database access.
 class FirestoreService {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
   final SupabaseBackupService _supabaseBackup = SupabaseBackupService();
-  static const _uuid = Uuid();
+  final Uuid _uuid = const Uuid();
+
+  FirestoreService({FirebaseFirestore? db})
+      : _db = db ?? FirebaseFirestore.instance;
 
   // ══════════════════════════════════════════════════════════════════════
   // USER PROFILES
@@ -47,6 +52,103 @@ class FirestoreService {
     final doc = await _db.collection('users').doc(uid).get();
     if (!doc.exists || doc.data() == null) return null;
     return UserModel.fromJson(doc.data()!);
+  }
+
+  /// Resolves the authentic user profile with strict role protection and self-healing.
+  /// Guarantees that Admin and Teacher accounts are never demoted or mislabeled as students.
+  Future<UserModel> resolveUserProfile(User firebaseUser) async {
+    final uid = firebaseUser.uid;
+    final email = (firebaseUser.email ?? '').trim().toLowerCase();
+
+    // 1. Fetch user doc, teacher doc, and student doc in parallel
+    final userDocFuture = _db.collection('users').doc(uid).get();
+    final teacherDocFuture = _db.collection('teachers').doc(uid).get();
+    final studentDocFuture = _db.collection('students').doc(uid).get();
+
+    final docs = await Future.wait([userDocFuture, teacherDocFuture, studentDocFuture]);
+    final userDoc = docs[0];
+    final teacherDoc = docs[1];
+    final studentDoc = docs[2];
+
+    // Determine authentic role strictly
+    UserRole expectedRole;
+    if (email == 'admin@presenza.edu' || email.startsWith('admin@')) {
+      expectedRole = UserRole.admin;
+    } else if (teacherDoc.exists && teacherDoc.data() != null) {
+      expectedRole = UserRole.teacher;
+    } else if (studentDoc.exists && studentDoc.data() != null) {
+      expectedRole = UserRole.student;
+    } else if (userDoc.exists && userDoc.data() != null) {
+      final roleStr = userDoc.data()!['role'] as String?;
+      expectedRole = UserRole.fromString(roleStr);
+    } else {
+      // Fallback for brand new accounts
+      if (email.contains('faculty') || email.contains('teacher') || email.contains('prof')) {
+        expectedRole = UserRole.teacher;
+      } else if (email.contains('admin')) {
+        expectedRole = UserRole.admin;
+      } else {
+        expectedRole = UserRole.student;
+      }
+    }
+
+    // If user doc exists, verify and self-heal role if corrupted
+    if (userDoc.exists && userDoc.data() != null) {
+      final user = UserModel.fromJson(userDoc.data()!);
+      if (user.role != expectedRole) {
+        final healed = user.copyWith(
+          role: expectedRole,
+          updatedAt: DateTime.now(),
+        );
+        try {
+          await saveUserModel(healed);
+        } catch (e) {
+          debugPrint('Failed to save healed user model: $e');
+        }
+        return healed;
+      }
+      return user;
+    }
+
+    // If user doc does not exist, provision cleanly with the expected role
+    final now = DateTime.now();
+    final name = firebaseUser.displayName ?? (email.isNotEmpty ? email.split('@').first : 'User');
+    final newUser = UserModel(
+      id: uid,
+      email: firebaseUser.email ?? '',
+      name: name,
+      role: expectedRole,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    try {
+      await saveUserModel(newUser);
+
+      if (expectedRole == UserRole.student && !studentDoc.exists) {
+        final student = StudentModel(
+          user: newUser,
+          studentId: 'STU-${uid.length >= 6 ? uid.substring(0, 6).toUpperCase() : "001"}',
+          courseId: 'course-btech-cse',
+          batchId: 'batch-2024-a',
+          semester: 1,
+          enrollmentDate: now,
+        );
+        await saveStudentProfile(student);
+      } else if (expectedRole == UserRole.teacher && !teacherDoc.exists) {
+        final teacher = TeacherModel(
+          user: newUser,
+          employeeId: 'EMP-${uid.length >= 6 ? uid.substring(0, 6).toUpperCase() : "001"}',
+          departmentId: 'dept-cse',
+          subjectIds: const [],
+        );
+        await saveTeacherProfile(teacher);
+      }
+    } catch (e) {
+      debugPrint('resolveUserProfile provisioning fallback warning: $e');
+    }
+
+    return newUser;
   }
 
   /// Updates a user's profile info (bio, phone, name, avatar).

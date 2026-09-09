@@ -25,12 +25,15 @@ service cloud.firestore {
     function getUserRole() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid))
         ? userDoc().role
-        : (request.auth.token.email == 'admin@presenza.edu' ? 'admin' : 'student');
+        : (exists(/databases/$(database)/documents/teachers/$(request.auth.uid))
+            ? 'teacher'
+            : (request.auth.token.email == 'admin@presenza.edu' || request.auth.token.email.matches('admin@.*') ? 'admin' : 'student'));
     }
 
     function isUserAdmin() {
       return signedIn() && (
         request.auth.token.email == 'admin@presenza.edu' ||
+        request.auth.token.email.matches('admin@.*') ||
         getUserRole() == 'admin'
       );
     }
@@ -39,6 +42,7 @@ service cloud.firestore {
       return signedIn() && (
         isUserAdmin() ||
         getUserRole() == 'teacher' ||
+        exists(/databases/$(database)/documents/teachers/$(request.auth.uid)) ||
         request.auth.token.email.matches('.*@faculty\\.presenza\\.edu')
       );
     }
@@ -110,12 +114,15 @@ service cloud.firestore {
     }
 
     // Circulars & Activities
-    // (Teachers can create official notices; students can create unofficial student activities)
+    // (Teachers/Admins can publish directly; students can submit pending notices or publish unofficial activities)
     match /circulars/{id} {
       allow read: if signedIn();
       allow create: if signedIn() && (
         isTeacherOrAdmin() ||
-        (request.resource.data.isOfficial == false && request.resource.data.authorId == request.auth.uid)
+        (request.resource.data.authorId == request.auth.uid && (
+          request.resource.data.isOfficial == false ||
+          request.resource.data.status == 'pending'
+        ))
       );
       allow update: if signedIn() && (
         isTeacherOrAdmin() || 

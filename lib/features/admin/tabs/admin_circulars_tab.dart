@@ -246,14 +246,24 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
                       final messenger = ScaffoldMessenger.of(context);
                       final navigator = Navigator.of(ctx);
 
-                      await firestoreService.saveActivityPost(post);
+                      try {
+                        await firestoreService.saveActivityPost(post);
 
-                      if (mounted) {
-                        navigator.pop();
+                        if (mounted) {
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Notice published and broadcast across campus!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setModalState(() => isSubmitting = false);
                         messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Notice published and broadcast across campus!'),
-                            backgroundColor: AppColors.success,
+                          SnackBar(
+                            content: Text('Failed to publish circular: $e'),
+                            backgroundColor: AppColors.error,
                           ),
                         );
                       }
@@ -314,7 +324,7 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
 
     return Scaffold(
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.only(bottom: 95),
         child: FloatingActionButton.extended(
           onPressed: () => _showCreateCircularModal(context),
           icon: const Icon(Icons.add_alert_rounded),
@@ -325,8 +335,67 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
       ),
       body: Column(
         children: [
+          // Quick Broadcast Notice Banner (Admin)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: InkWell(
+              onTap: () => _showCreateCircularModal(context),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? AppColors.cardBorderDark : AppColors.cardBorderLight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: const Color(0xFF7C3AED).withAlpha(25),
+                      child: const Icon(Icons.campaign_rounded, size: 16, color: Color(0xFF7C3AED)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Broadcast institutional circular or official notice...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded, color: Colors.white, size: 14),
+                          SizedBox(width: 4),
+                          Text(
+                            'Post',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
             child: AppTextField(
               controller: _searchController,
               hintText: 'Search all notices...',

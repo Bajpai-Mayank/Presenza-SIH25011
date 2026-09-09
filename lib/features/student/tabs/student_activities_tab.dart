@@ -270,18 +270,28 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       final messenger = ScaffoldMessenger.of(context);
                       final navigator = Navigator.of(ctx);
 
-                      await firestoreService.saveActivityPost(post);
+                      try {
+                        await firestoreService.saveActivityPost(post);
 
-                      if (mounted) {
-                        navigator.pop();
+                        if (mounted) {
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                isNotice
+                                    ? 'Notice submitted for review! It will be published once approved by Faculty or Administration.'
+                                    : 'Post published and live across campus!',
+                              ),
+                              backgroundColor: isNotice ? AppColors.warning : AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setModalState(() => isSubmitting = false);
                         messenger.showSnackBar(
                           SnackBar(
-                            content: Text(
-                              isNotice
-                                  ? 'Notice submitted for review! It will be published once approved by Faculty or Administration.'
-                                  : 'Post published and live across campus!',
-                            ),
-                            backgroundColor: isNotice ? AppColors.warning : AppColors.success,
+                            content: Text('Failed to submit post: $e'),
+                            backgroundColor: AppColors.error,
                           ),
                         );
                       }
@@ -515,12 +525,15 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
     }).toList();
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreatePostDialog(context, initialCategory: ActivityCategory.notice),
-        icon: const Icon(Icons.campaign_rounded),
-        label: const Text('Send Notice / Post'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 95),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showCreatePostDialog(context, initialCategory: ActivityCategory.notice),
+          icon: const Icon(Icons.campaign_rounded),
+          label: const Text('Send Notice / Post'),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+        ),
       ),
       body: Column(
         children: [

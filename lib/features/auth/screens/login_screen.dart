@@ -105,8 +105,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         await prefs.setBool('remember_me_enabled', false);
       }
       
-      // No immediate navigation here – the auth listener will handle routing safely.
-
+      final currentAuth = ref.read(authStatusProvider);
+      if (mounted && currentAuth.status == AuthStatus.authenticated && currentAuth.user != null) {
+        _routeForRole(currentAuth.user!.role);
+      }
     }
 
     if (mounted) {
@@ -133,18 +135,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AuthState>(authStatusProvider, (previous, next) {
-      if (next.status == AuthStatus.authenticated && next.user != null) {
-        _routeForRole(next.user!.role);
-      } else if (next.status == AuthStatus.profileMissing) {
-        context.go('/no-profile');
-      } else if (next.status == AuthStatus.error && next.errorMessage != null) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = next.errorMessage;
-        });
-      }
-    });
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     

@@ -97,26 +97,10 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
     _init();
   }
 
-  static UserModel _synthesizeUserFromFirebase(User user) {
-    final email = user.email ?? '';
-    final defaultRole = (email.contains('faculty') || email.contains('teacher'))
-        ? UserRole.teacher
-        : (email == 'admin@presenza.edu' ? UserRole.admin : UserRole.student);
-    final name = user.displayName ?? (email.isNotEmpty ? email.split('@').first : 'Student');
-    return UserModel(
-      id: user.uid,
-      email: email,
-      name: name,
-      role: defaultRole,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-  }
-
   static AuthState _initialAuthState() {
     final currentFirebaseUser = FirebaseAuth.instance.currentUser;
     if (currentFirebaseUser != null) {
-      return AuthState.authenticated(_synthesizeUserFromFirebase(currentFirebaseUser));
+      return const AuthState.fetchingProfile();
     }
     return const AuthState.initializing();
   }
@@ -127,55 +111,39 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       if (user == null) {
         state = const AuthState.unauthenticated();
       } else {
-        // If not already authenticated, initialize with synthesized user so UI loads instantly
         if (!state.isAuthenticated) {
-          state = AuthState.authenticated(_synthesizeUserFromFirebase(user));
+          state = const AuthState.fetchingProfile();
         }
         try {
           final firestoreService = _ref.read(firestoreServiceProvider);
-          UserModel? userModel = await firestoreService.getUserModel(user.uid).timeout(
-            const Duration(seconds: 10),
-            onTimeout: () => null,
+          final userModel = await firestoreService.resolveUserProfile(user).timeout(
+            const Duration(seconds: 12),
           );
           
-          if (userModel != null) {
-            state = AuthState.authenticated(userModel);
-            NotificationService().syncUserToken(user.uid);
-            firestoreService.updateUserActivity(user.uid, isOnline: true);
-            _monitorSession(firestoreService);
-          } else {
-            // Auto-provision user model for existing Firebase Auth users who don't have Firestore doc yet
-            final synthesizedUser = _synthesizeUserFromFirebase(user);
-            
-            try {
-              await firestoreService.saveUserModel(synthesizedUser);
-              if (synthesizedUser.role == UserRole.student) {
-                final student = StudentModel(
-                  user: synthesizedUser,
-                  studentId: 'STU-${user.uid.length >= 6 ? user.uid.substring(0, 6).toUpperCase() : "001"}',
-                  courseId: 'course-btech-cse',
-                  batchId: 'batch-2024-a',
-                  semester: 1,
-                  enrollmentDate: DateTime.now(),
-                );
-                await firestoreService.saveStudentProfile(student);
-              }
-              state = AuthState.authenticated(synthesizedUser);
-              NotificationService().syncUserToken(user.uid);
-              _monitorSession(firestoreService);
-            } catch (saveError) {
-              debugPrint('Auto-profile save fallback error: $saveError');
-              // Maintain local synthesized authentication instead of locking user out
-              state = AuthState.authenticated(synthesizedUser);
-              NotificationService().syncUserToken(user.uid);
-            }
-          }
+          state = AuthState.authenticated(userModel);
+          NotificationService().syncUserToken(user.uid);
+          firestoreService.updateUserActivity(user.uid, isOnline: true);
+          _monitorSession(firestoreService);
         } catch (e) {
-          debugPrint('AuthStatusNotifier: Failed to load profile: $e');
-          // On transient error, maintain current authenticated state with synthesized user
-          if (!state.isAuthenticated) {
-            state = AuthState.authenticated(_synthesizeUserFromFirebase(user));
+          debugPrint('AuthStatusNotifier: Failed to resolve profile: $e');
+          final email = (user.email ?? '').trim().toLowerCase();
+          UserRole role;
+          if (email == 'admin@presenza.edu' || email.startsWith('admin@')) {
+            role = UserRole.admin;
+          } else if (email.contains('faculty') || email.contains('teacher') || email.contains('prof')) {
+            role = UserRole.teacher;
+          } else {
+            role = UserRole.student;
           }
+          final fallback = UserModel(
+            id: user.uid,
+            email: user.email ?? '',
+            name: user.displayName ?? (email.isNotEmpty ? email.split('@').first : 'User'),
+            role: role,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          );
+          state = AuthState.authenticated(fallback);
         }
       }
     });
@@ -203,15 +171,26 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
   Future<String?> login(String email, String password) async {
     state = const AuthState.authenticating();
     final authService = _ref.read(authServiceProvider);
+    final firestoreService = _ref.read(firestoreServiceProvider);
     
     try {
-      // Use timeout for auth sign in
       final result = await authService.signIn(email: email, password: password).timeout(
         const Duration(seconds: 15),
         onTimeout: () => AuthResult.error('Login timed out. Please check your internet connection.'),
       );
       
       if (result.success && result.user != null) {
+        // Resolve the authentic user profile from Firestore BEFORE reporting login success
+        state = const AuthState.fetchingProfile();
+        try {
+          final userModel = await firestoreService.resolveUserProfile(result.user!).timeout(
+            const Duration(seconds: 10),
+          );
+          state = AuthState.authenticated(userModel);
+        } catch (e) {
+          debugPrint('Login profile resolution warning: $e');
+        }
+
         final prefs = await SharedPreferences.getInstance();
         String? deviceId = prefs.getString('persistent_device_id');
         if (deviceId == null) {
@@ -288,12 +267,8 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
     }
     try {
       final firestoreService = _ref.read(firestoreServiceProvider);
-      final userModel = await firestoreService.getUserModel(user.uid);
-      if (userModel != null) {
-        state = AuthState.authenticated(userModel);
-      } else if (!state.isAuthenticated) {
-        state = const AuthState.profileMissing();
-      }
+      final userModel = await firestoreService.resolveUserProfile(user);
+      state = AuthState.authenticated(userModel);
     } catch (e) {
       debugPrint('AuthStatusNotifier: Failed to refresh profile: $e');
       if (!state.isAuthenticated) {

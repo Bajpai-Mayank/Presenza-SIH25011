@@ -226,14 +226,24 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
                       final messenger = ScaffoldMessenger.of(context);
                       final navigator = Navigator.of(ctx);
 
-                      await firestoreService.saveActivityPost(post);
+                      try {
+                        await firestoreService.saveActivityPost(post);
 
-                      if (mounted) {
-                        navigator.pop();
+                        if (mounted) {
+                          navigator.pop();
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Notice broadcasted to students and faculty!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setModalState(() => isSubmitting = false);
                         messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Notice broadcasted to students and faculty!'),
-                            backgroundColor: AppColors.success,
+                          SnackBar(
+                            content: Text('Failed to publish notice: $e'),
+                            backgroundColor: AppColors.error,
                           ),
                         );
                       }
@@ -461,7 +471,7 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
 
     return Scaffold(
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.only(bottom: 95),
         child: FloatingActionButton.extended(
           onPressed: () => _showCreateNoticeModal(context),
           icon: const Icon(Icons.campaign_rounded),
