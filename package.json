@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Presenza - Smart Attendance & Academic Management",
   "scripts": {
+    "dev": "flutter run -d chrome",
     "build": "bash build.sh",
     "build:web": "flutter build web --release --no-tree-shake-icons",
     "build:apk": "flutter build apk --release --no-tree-shake-icons",

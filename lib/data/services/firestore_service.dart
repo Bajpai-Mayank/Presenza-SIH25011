@@ -248,7 +248,22 @@ class FirestoreService {
     return _db.collection('circulars').snapshots().map((snapshot) {
       final list = snapshot.docs
           .map((doc) => ActivityPostModel.fromJson(doc.data()))
-          .where((p) => p.status == ActivityStatus.approved || p.isOfficial)
+          .where((p) => p.status == ActivityStatus.approved)
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  /// Stream activities created by a specific user (including pending submissions).
+  Stream<List<ActivityPostModel>> streamActivitiesForUser(String userId) {
+    return _db
+        .collection('circulars')
+        .where('authorId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => ActivityPostModel.fromJson(doc.data()))
           .toList();
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
@@ -821,9 +836,18 @@ class FirestoreService {
         .where('isActive', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => AttendanceSessionModel.fromJson(doc.data()))
-          .toList();
+      final now = DateTime.now();
+      final activeList = <AttendanceSessionModel>[];
+      for (final doc in snapshot.docs) {
+        final session = AttendanceSessionModel.fromJson(doc.data());
+        if (now.isAfter(session.endTime) || session.isExpired) {
+          // Deactivate expired session in background
+          _db.collection('sessions').doc(session.id).update({'isActive': false}).catchError((_) {});
+        } else {
+          activeList.add(session);
+        }
+      }
+      return activeList;
     });
   }
 
@@ -837,9 +861,18 @@ class FirestoreService {
         .where('isActive', isEqualTo: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => AttendanceSessionModel.fromJson(doc.data()))
-          .toList();
+      final now = DateTime.now();
+      final activeList = <AttendanceSessionModel>[];
+      for (final doc in snapshot.docs) {
+        final session = AttendanceSessionModel.fromJson(doc.data());
+        if (now.isAfter(session.endTime) || session.isExpired) {
+          // Deactivate expired session in background
+          _db.collection('sessions').doc(session.id).update({'isActive': false}).catchError((_) {});
+        } else {
+          activeList.add(session);
+        }
+      }
+      return activeList;
     });
   }
 
@@ -1331,6 +1364,73 @@ class FirestoreService {
       if (!doc.exists || doc.data() == null) return null;
       return UserSessionModel.fromMap(doc.data()!);
     });
+  }
+
+  /// Records user login timestamp and online status.
+  Future<void> recordUserLogin(String uid) async {
+    try {
+      final now = DateTime.now().toIso8601String();
+      final updates = {
+        'lastLoginAt': now,
+        'lastActiveAt': now,
+        'isOnline': true,
+        'updatedAt': now,
+      };
+      await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
+      final studentDoc = await _db.collection('students').doc(uid).get();
+      if (studentDoc.exists && studentDoc.data() != null) {
+        final current = studentDoc.data()!;
+        final userMap = Map<String, dynamic>.from(current['user'] as Map? ?? {});
+        userMap.addAll(updates);
+        await _db.collection('students').doc(uid).set({'user': userMap}, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('recordUserLogin error: $e');
+    }
+  }
+
+  /// Updates user heartbeat / active timestamp.
+  Future<void> updateUserActivity(String uid, {bool isOnline = true}) async {
+    try {
+      final now = DateTime.now().toIso8601String();
+      final updates = {
+        'lastActiveAt': now,
+        'isOnline': isOnline,
+        'updatedAt': now,
+      };
+      await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
+      final studentDoc = await _db.collection('students').doc(uid).get();
+      if (studentDoc.exists && studentDoc.data() != null) {
+        final current = studentDoc.data()!;
+        final userMap = Map<String, dynamic>.from(current['user'] as Map? ?? {});
+        userMap.addAll(updates);
+        await _db.collection('students').doc(uid).set({'user': userMap}, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('updateUserActivity error: $e');
+    }
+  }
+
+  /// Updates user online / offline status (e.g. on logout or app paused).
+  Future<void> updateUserOnlineStatus(String uid, bool isOnline) async {
+    try {
+      final now = DateTime.now().toIso8601String();
+      final updates = {
+        'isOnline': isOnline,
+        'lastActiveAt': now,
+        'updatedAt': now,
+      };
+      await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
+      final studentDoc = await _db.collection('students').doc(uid).get();
+      if (studentDoc.exists && studentDoc.data() != null) {
+        final current = studentDoc.data()!;
+        final userMap = Map<String, dynamic>.from(current['user'] as Map? ?? {});
+        userMap.addAll(updates);
+        await _db.collection('students').doc(uid).set({'user': userMap}, SetOptions(merge: true));
+      }
+    } catch (e) {
+      debugPrint('updateUserOnlineStatus error: $e');
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════

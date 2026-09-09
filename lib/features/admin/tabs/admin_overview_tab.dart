@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:presenza/config/theme/app_colors.dart';
+import 'package:presenza/features/admin/screens/admin_courses_screen.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 
@@ -22,12 +23,13 @@ class AdminOverviewTab extends ConsumerWidget {
     final students = ref.watch(allStudentsProvider);
     final courses = ref.watch(coursesProvider).valueOrNull ?? [];
     final circulars = ref.watch(circularsProvider);
-    final activeSessions = ref.watch(allActiveSessionsProvider);
+    final allSessions = ref.watch(allActiveSessionsProvider);
+    final activeSessions = allSessions.where((s) => !s.isExpired).toList();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -85,6 +87,13 @@ class AdminOverviewTab extends ConsumerWidget {
                   value: courses.length.toString(),
                   icon: Icons.account_balance_outlined,
                   iconColor: AppColors.secondary,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const AdminCoursesScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -154,12 +163,26 @@ class AdminOverviewTab extends ConsumerWidget {
                         label: const Text('Live Monitor'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const AdminCoursesScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.menu_book_rounded, size: 16),
+                        label: const Text('View Courses'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: onNavigateToCirculars,
                         icon: const Icon(Icons.add_alert_rounded, size: 16),
-                        label: const Text('Broadcast Notice'),
+                        label: const Text('Notice'),
                       ),
                     ),
                   ],

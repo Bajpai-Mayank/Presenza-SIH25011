@@ -339,7 +339,7 @@ class TeacherProfileTab extends ConsumerWidget {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

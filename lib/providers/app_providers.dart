@@ -141,6 +141,7 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
           if (userModel != null) {
             state = AuthState.authenticated(userModel);
             NotificationService().syncUserToken(user.uid);
+            firestoreService.updateUserActivity(user.uid, isOnline: true);
             _monitorSession(firestoreService);
           } else {
             // Auto-provision user model for existing Firebase Auth users who don't have Firestore doc yet
@@ -248,6 +249,7 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
       await Future.wait([
         firestoreService.createUserSession(session),
         firestoreService.invalidateOtherSessions(uid, sessionId),
+        firestoreService.recordUserLogin(uid),
       ]);
     } catch (e) {
       debugPrint('Session bookkeeping failed: $e');
@@ -256,10 +258,14 @@ class AuthStatusNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final firestoreService = _ref.read(firestoreServiceProvider);
+      if (uid != null) {
+        await firestoreService.updateUserOnlineStatus(uid, false);
+      }
       final prefs = await SharedPreferences.getInstance();
       final activeSessionId = prefs.getString('active_session_id');
       if (activeSessionId != null) {
-        final firestoreService = _ref.read(firestoreServiceProvider);
         await firestoreService.deactivateSession(activeSessionId);
         await prefs.remove('active_session_id');
       }
@@ -629,6 +635,12 @@ final pendingActivitiesStreamProvider =
     StreamProvider<List<ActivityPostModel>>((ref) {
   final firestoreService = ref.watch(firestoreServiceProvider);
   return firestoreService.streamPendingActivities();
+});
+
+final userActivitiesStreamProvider =
+    StreamProvider.family<List<ActivityPostModel>, String>((ref, userId) {
+  final firestore = ref.watch(firestoreServiceProvider);
+  return firestore.streamActivitiesForUser(userId);
 });
 
 final circularsStreamProvider = StreamProvider<List<CircularModel>>((ref) {

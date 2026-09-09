@@ -6,6 +6,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:presenza/config/theme/app_colors.dart';
 import 'package:presenza/core/enums/user_role.dart';
 import 'package:presenza/data/models/user_model.dart';
+import 'package:presenza/features/admin/screens/admin_courses_screen.dart';
 import 'package:presenza/providers/app_providers.dart';
 import 'package:presenza/shared/widgets/shared_widgets.dart';
 
@@ -240,7 +241,7 @@ class _AdminProfileTabState extends ConsumerState<AdminProfileTab> {
     final themeMode = ref.watch(themeModeProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -302,6 +303,34 @@ class _AdminProfileTabState extends ConsumerState<AdminProfileTab> {
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
+          ),
+          const SizedBox(height: 12),
+
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.menu_book_rounded, color: AppColors.primary, size: 22),
+              ),
+              title: const Text(
+                'Academic Courses & Curricula',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: const Text('Browse institutional courses, semesters, batches & syllabi'),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AdminCoursesScreen()),
+                );
+              },
+            ),
           ),
           const SizedBox(height: 12),
 

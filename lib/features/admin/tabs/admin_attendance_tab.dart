@@ -11,7 +11,8 @@ class AdminAttendanceTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeSessions = ref.watch(allActiveSessionsProvider);
+    final allSessions = ref.watch(allActiveSessionsProvider);
+    final activeSessions = allSessions.where((s) => !s.isExpired).toList();
     final students = ref.watch(allStudentsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -21,7 +22,7 @@ class AdminAttendanceTab extends ConsumerWidget {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

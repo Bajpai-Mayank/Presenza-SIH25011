@@ -26,7 +26,7 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
@@ -443,6 +443,8 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
   Widget build(BuildContext context) {
     final activitiesAsync = ref.watch(activitiesStreamProvider);
     final activities = activitiesAsync.valueOrNull ?? [];
+    final pendingActivitiesAsync = ref.watch(pendingActivitiesStreamProvider);
+    final pendingActivities = pendingActivitiesAsync.valueOrNull ?? [];
     final teacher = ref.watch(teacherProfileProvider);
     final teacherUid = teacher?.user.id ?? '';
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -458,18 +460,87 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
     }).toList();
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateNoticeModal(context),
-        icon: const Icon(Icons.campaign_rounded),
-        label: const Text('Create Notice'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showCreateNoticeModal(context),
+          icon: const Icon(Icons.campaign_rounded),
+          label: const Text('Create Notice'),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+        ),
       ),
       body: Column(
         children: [
+          // Quick Notice Banner (Faculty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+            child: InkWell(
+              onTap: () => _showCreateNoticeModal(context),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? AppColors.cardBorderDark : AppColors.cardBorderLight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: AppColors.primary.withAlpha(25),
+                      child: Text(
+                        teacher?.user.initials ?? 'F',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Publish faculty notice or academic update...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.campaign_rounded, size: 14, color: Colors.white),
+                          SizedBox(width: 4),
+                          Text(
+                            'Publish Notice',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
           // Search & Filter Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
             child: AppTextField(
               controller: _searchController,
               hintText: 'Search notices and activities...',
@@ -483,12 +554,42 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
             ),
           ),
 
+          // Categories Horizontal Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Row(
+              children: [
+                ChoiceChip(
+                  label: const Text('All Categories'),
+                  selected: _selectedCategory == null,
+                  onSelected: (_) => setState(() => _selectedCategory = null),
+                ),
+                const SizedBox(width: 8),
+                ...ActivityCategory.values.map((cat) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      avatar: Icon(cat.icon, size: 16),
+                      label: Text(cat == ActivityCategory.notice ? '📢 Notice' : cat.label),
+                      selected: _selectedCategory == cat,
+                      onSelected: (selected) {
+                        setState(() => _selectedCategory = selected ? cat : null);
+                      },
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+
           TabBar(
             controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: [
               Tab(
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text('Campus Feed'),
                     const SizedBox(width: 6),
@@ -502,6 +603,21 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
               ),
               const Tab(
                 text: '📢 Official Notices',
+              ),
+              Tab(
+                child: Row(
+                  children: [
+                    const Text('⏳ Pending Approvals'),
+                    if (pendingActivities.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      StatusBadge(
+                        label: pendingActivities.length.toString(),
+                        color: AppColors.warning,
+                        small: true,
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const Tab(
                 text: '👤 My Notices',
@@ -526,19 +642,137 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
                   emptySubtitle: 'Publish an official notice to broadcast across campus.',
                 ),
 
-                // Tab 2: My Published Notices
+                // Tab 2: Pending Student Notices for Moderation
+                _buildTeacherPendingList(pendingActivities, isDark),
+
+                // Tab 3: My Published Notices
                 _buildTeacherPostList(
                   filteredList.where((a) => a.authorId == teacherUid).toList(),
                   teacherUid,
                   isDark,
                   emptyTitle: 'You Haven\'t Published Any Notices',
-                  emptySubtitle: 'Tap Create Notice to broadcast an announcement to your students.',
+                  emptySubtitle: 'Tap Publish Notice to broadcast an announcement to your students.',
                 ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTeacherPendingList(List<ActivityPostModel> list, bool isDark) {
+    if (list.isEmpty) {
+      return const EmptyStateWidget(
+        icon: Icons.check_circle_outline_rounded,
+        title: 'All Caught Up!',
+        subtitle: 'No student notices or submissions awaiting faculty moderation.',
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      itemCount: list.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final post = list[index];
+        return AppCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CategoryBadge(category: post.category, small: true),
+                  const SizedBox(width: 8),
+                  const StatusBadge(
+                    label: 'Pending Review',
+                    color: AppColors.warning,
+                    icon: Icons.hourglass_top_rounded,
+                    small: true,
+                  ),
+                  const Spacer(),
+                  Text(
+                    DateFormat('d MMM, hh:mm a').format(post.createdAt),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                post.title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                post.description,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.person_outline_rounded, size: 14, color: AppColors.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Submitted by ${post.authorName} (${post.authorRole})',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await ref.read(firestoreServiceProvider).rejectActivityPost(post.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Notice submission rejected.')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.close_rounded, size: 16, color: AppColors.error),
+                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await ref.read(firestoreServiceProvider).approveActivityPost(post.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Notice approved and published campus-wide!'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                    label: const Text('Approve & Publish', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -558,7 +792,7 @@ class _TeacherActivitiesTabState extends ConsumerState<TeacherActivitiesTab>
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
       itemCount: list.length,
       separatorBuilder: (_, _) => const SizedBox(height: 14),
       itemBuilder: (context, index) {

@@ -33,6 +33,9 @@ class UserModel {
   final String? bio;
   final String? institution;
   final String? department;
+  final DateTime? lastLoginAt;
+  final DateTime? lastActiveAt;
+  final bool isOnline;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -46,6 +49,9 @@ class UserModel {
     this.bio,
     this.institution,
     this.department,
+    this.lastLoginAt,
+    this.lastActiveAt,
+    this.isOnline = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -60,6 +66,13 @@ class UserModel {
         bio: json['bio'] as String?,
         institution: json['institution'] as String? ?? 'National Institute of Technology',
         department: json['department'] as String?,
+        lastLoginAt: json['lastLoginAt'] != null
+            ? DateTime.tryParse(json['lastLoginAt'] as String)
+            : null,
+        lastActiveAt: json['lastActiveAt'] != null
+            ? DateTime.tryParse(json['lastActiveAt'] as String)
+            : null,
+        isOnline: json['isOnline'] as bool? ?? false,
         createdAt: json['createdAt'] != null
             ? DateTime.tryParse(json['createdAt'] as String) ?? DateTime.now()
             : DateTime.now(),
@@ -78,6 +91,9 @@ class UserModel {
         'bio': bio,
         'institution': institution,
         'department': department,
+        'lastLoginAt': lastLoginAt?.toIso8601String(),
+        'lastActiveAt': lastActiveAt?.toIso8601String(),
+        'isOnline': isOnline,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -92,6 +108,9 @@ class UserModel {
     String? bio,
     String? institution,
     String? department,
+    DateTime? lastLoginAt,
+    DateTime? lastActiveAt,
+    bool? isOnline,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) =>
@@ -105,9 +124,21 @@ class UserModel {
         bio: bio ?? this.bio,
         institution: institution ?? this.institution,
         department: department ?? this.department,
+        lastLoginAt: lastLoginAt ?? this.lastLoginAt,
+        lastActiveAt: lastActiveAt ?? this.lastActiveAt,
+        isOnline: isOnline ?? this.isOnline,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
+
+  bool get isCurrentlyActive {
+    if (isOnline) return true;
+    if (lastActiveAt != null &&
+        DateTime.now().difference(lastActiveAt!).inMinutes < 5) {
+      return true;
+    }
+    return false;
+  }
 
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));

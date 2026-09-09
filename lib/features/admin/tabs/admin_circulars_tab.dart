@@ -25,7 +25,7 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
@@ -300,6 +300,8 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
   Widget build(BuildContext context) {
     final activitiesAsync = ref.watch(activitiesStreamProvider);
     final activities = activitiesAsync.valueOrNull ?? [];
+    final pendingAsync = ref.watch(pendingActivitiesStreamProvider);
+    final pendingActivities = pendingAsync.valueOrNull ?? [];
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final filteredList = activities.where((a) {
@@ -311,12 +313,15 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
     }).toList();
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateCircularModal(context),
-        icon: const Icon(Icons.add_alert_rounded),
-        label: const Text('New Notice'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: FloatingActionButton.extended(
+          onPressed: () => _showCreateCircularModal(context),
+          icon: const Icon(Icons.add_alert_rounded),
+          label: const Text('New Notice'),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+        ),
       ),
       body: Column(
         children: [
@@ -336,9 +341,25 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
           ),
           TabBar(
             controller: _tabController,
-            tabs: const [
-              Tab(text: '📢 Official Circulars'),
-              Tab(text: 'All Campus Feed'),
+            tabs: [
+              const Tab(text: '📢 Official Circulars'),
+              const Tab(text: 'All Campus Feed'),
+              Tab(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('⏳ Pending Approvals'),
+                    if (pendingActivities.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      StatusBadge(
+                        label: pendingActivities.length.toString(),
+                        color: AppColors.warning,
+                        small: true,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
           const Divider(height: 1),
@@ -358,11 +379,127 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
                   emptyTitle: 'No Campus Feed Found',
                   emptySubtitle: 'Notices and activities published across campus will appear here.',
                 ),
+                _buildAdminPendingList(pendingActivities, isDark),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAdminPendingList(List<ActivityPostModel> list, bool isDark) {
+    if (list.isEmpty) {
+      return const EmptyStateWidget(
+        icon: Icons.task_alt_rounded,
+        title: 'No Pending Notices',
+        subtitle: 'All campus and student notice submissions have been moderated.',
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      itemCount: list.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final notice = list[index];
+        return AppCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CategoryBadge(category: notice.category, small: true),
+                  const SizedBox(width: 8),
+                  const StatusBadge(
+                    label: 'Pending Approval',
+                    color: AppColors.warning,
+                    icon: Icons.hourglass_top_rounded,
+                    small: true,
+                  ),
+                  const Spacer(),
+                  Text(
+                    DateFormat('d MMM yyyy, hh:mm a').format(notice.createdAt),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                notice.title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                notice.description,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.person_outline_rounded, size: 14, color: AppColors.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Submitted by ${notice.authorName} (${notice.authorRole})',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await ref.read(firestoreServiceProvider).rejectActivityPost(notice.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Notice rejected.')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.close_rounded, size: 16, color: AppColors.error),
+                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await ref.read(firestoreServiceProvider).approveActivityPost(notice.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Notice approved and broadcasted across campus!'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+                    label: const Text('Approve & Broadcast', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -381,7 +518,7 @@ class _AdminCircularsTabState extends ConsumerState<AdminCircularsTab>
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
       itemCount: list.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {

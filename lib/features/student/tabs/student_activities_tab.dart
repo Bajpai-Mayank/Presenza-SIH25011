@@ -111,27 +111,39 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
-                      color: AppColors.success.withAlpha(20),
+                      color: selectedCategory == ActivityCategory.notice
+                          ? AppColors.warning.withAlpha(20)
+                          : AppColors.success.withAlpha(20),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppColors.success.withAlpha(80),
+                        color: selectedCategory == ActivityCategory.notice
+                            ? AppColors.warning.withAlpha(80)
+                            : AppColors.success.withAlpha(80),
                       ),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(
-                          Icons.bolt_rounded,
+                          selectedCategory == ActivityCategory.notice
+                              ? Icons.gavel_rounded
+                              : Icons.bolt_rounded,
                           size: 20,
-                          color: AppColors.success,
+                          color: selectedCategory == ActivityCategory.notice
+                              ? AppColors.warning
+                              : AppColors.success,
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Instant Broadcast: Live immediately for all students, teachers, and admins.',
+                            selectedCategory == ActivityCategory.notice
+                                ? 'Moderation Notice: Official notices require approval by Faculty or Administration before appearing across campus.'
+                                : 'Instant Broadcast: Live immediately for all students, teachers, and admins.',
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: AppColors.success,
+                              color: selectedCategory == ActivityCategory.notice
+                                  ? AppColors.warning
+                                  : AppColors.success,
                             ),
                           ),
                         ),
@@ -162,7 +174,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                               color: isSelected ? Colors.white : cat.color,
                             ),
                             label: Text(
-                              cat == ActivityCategory.notice ? '📢 Notice' : cat.label,
+                              cat == ActivityCategory.notice ? '📢 Official Notice' : cat.label,
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 color: isSelected ? Colors.white : null,
@@ -183,7 +195,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   AppTextField(
                     controller: titleCtrl,
                     labelText: selectedCategory == ActivityCategory.notice
-                        ? 'Notice Title'
+                        ? 'Official Notice Title'
                         : 'Activity / Event Title',
                     hintText: selectedCategory == ActivityCategory.notice
                         ? 'e.g. Campus Blood Donation Drive or Hackathon Notice'
@@ -222,8 +234,12 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   const SizedBox(height: 24),
 
                   AppButton.primary(
-                    label: 'Broadcast Notice / Post Now',
-                    icon: Icons.rocket_launch_rounded,
+                    label: selectedCategory == ActivityCategory.notice
+                        ? 'Submit Notice for Approval'
+                        : 'Broadcast Post Now',
+                    icon: selectedCategory == ActivityCategory.notice
+                        ? Icons.send_and_archive_rounded
+                        : Icons.rocket_launch_rounded,
                     isLoading: isSubmitting,
                     onPressed: () async {
                       if (!formKey.currentState!.validate()) return;
@@ -233,6 +249,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       final firestoreService = ref.read(firestoreServiceProvider);
                       final now = DateTime.now();
 
+                      final isNotice = selectedCategory == ActivityCategory.notice;
                       final post = ActivityPostModel(
                         id: const Uuid().v4(),
                         title: titleCtrl.text.trim(),
@@ -241,8 +258,8 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                         authorId: student?.user.id ?? 'student',
                         authorName: student?.user.name ?? 'Student Author',
                         authorRole: 'student',
-                        isOfficial: false,
-                        status: ActivityStatus.approved,
+                        isOfficial: isNotice,
+                        status: isNotice ? ActivityStatus.pending : ActivityStatus.approved,
                         eventDate: selectedDate,
                         location: locationCtrl.text.trim().isNotEmpty ? locationCtrl.text.trim() : null,
                         organizer: organizerCtrl.text.trim().isNotEmpty ? organizerCtrl.text.trim() : null,
@@ -258,9 +275,13 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                       if (mounted) {
                         navigator.pop();
                         messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('Notice published and live for the entire campus!'),
-                            backgroundColor: AppColors.success,
+                          SnackBar(
+                            content: Text(
+                              isNotice
+                                  ? 'Notice submitted for review! It will be published once approved by Faculty or Administration.'
+                                  : 'Post published and live across campus!',
+                            ),
+                            backgroundColor: isNotice ? AppColors.warning : AppColors.success,
                           ),
                         );
                       }
@@ -471,6 +492,9 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
     final studentSemester = student?.semester;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final userPostsAsync = uid.isNotEmpty ? ref.watch(userActivitiesStreamProvider(uid)) : null;
+    final userPosts = userPostsAsync?.valueOrNull ?? [];
+
     // Filter by search query and category
     List<ActivityPostModel> filteredList = activities.where((a) {
       final matchesSearch = _searchQuery.isEmpty ||
@@ -648,7 +672,7 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                   emptySubtitle: 'Create workshops, study groups, or club meetups!',
                 ),
                 _buildActivityList(
-                  filteredList.where((a) => a.authorId == uid).toList(),
+                  userPosts,
                   uid,
                   isDark,
                   emptyTitle: 'You Haven\'t Posted Yet',
@@ -705,13 +729,38 @@ class _StudentActivitiesTabState extends ConsumerState<StudentActivitiesTab>
                 children: [
                   CategoryBadge(category: post.category),
                   const SizedBox(width: 8),
-                  if (post.isOfficial)
+                  if (post.isOfficial) ...[
                     const StatusBadge(
                       label: 'Official',
                       color: AppColors.primary,
                       icon: Icons.verified_outlined,
                       small: true,
                     ),
+                    const SizedBox(width: 6),
+                  ],
+                  if (isOwner) ...[
+                    if (post.status == ActivityStatus.pending)
+                      const StatusBadge(
+                        label: 'Pending Approval',
+                        color: AppColors.warning,
+                        icon: Icons.hourglass_top_rounded,
+                        small: true,
+                      )
+                    else if (post.status == ActivityStatus.rejected)
+                      const StatusBadge(
+                        label: 'Rejected',
+                        color: AppColors.error,
+                        icon: Icons.cancel_outlined,
+                        small: true,
+                      )
+                    else if (post.status == ActivityStatus.approved)
+                      const StatusBadge(
+                        label: 'Approved & Live',
+                        color: AppColors.success,
+                        icon: Icons.check_circle_outline_rounded,
+                        small: true,
+                      ),
+                  ],
                   const Spacer(),
                   if (isOwner)
                     IconButton(
